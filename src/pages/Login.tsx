@@ -39,7 +39,14 @@ export default function Login() {
       return;
     }
 
-    navigate(from, { replace: true });
+    const { user } = useAuthStore.getState();
+
+    if (user?.isAdmin) {
+      navigate('/admin/dashboard', { replace: true });
+      return;
+    }
+
+    navigate(from || '/shop', { replace: true });
   };
 
   const registerLink = `/register?from=${encodeURIComponent(from)}${reason ? `&reason=${encodeURIComponent(reason)}` : ''}`;

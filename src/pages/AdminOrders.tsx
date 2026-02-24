@@ -1,9 +1,7 @@
-import Layout from '@/components/layout/Layout';
+import { AdminLayout } from '@/components/layout/AdminLayout';
 import { useOrderStore, type OrderStatus } from '@/lib/order-store';
 import { formatPrice } from '@/lib/format';
-import { useMemo, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '@/lib/auth-store';
+import { useMemo, useState } from 'react';
 
 const statusLabels: Record<OrderStatus, string> = {
   pending_payment: 'Pending Payment',
@@ -23,20 +21,11 @@ const filterOptions: { value: 'all' | OrderStatus; label: string }[] = [
 ];
 
 export default function AdminOrders() {
-  const user = useAuthStore((s) => s.user);
-  const isAdmin = useAuthStore((s) => s.isAdmin());
-  const navigate = useNavigate();
   const orders = useOrderStore((s) => s.orders);
   const updateStatus = useOrderStore((s) => s.updateStatus);
   const [filter, setFilter] = useState<'all' | OrderStatus>('all');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-
-  useEffect(() => {
-    if (!user || !isAdmin) {
-      navigate('/login?from=/admin/orders&reason=admin', { replace: true });
-    }
-  }, [user, isAdmin, navigate]);
 
   const filtered = useMemo(() => {
     let result = filter === 'all' ? [...orders] : orders.filter((o) => o.status === filter);
@@ -58,13 +47,12 @@ export default function AdminOrders() {
     updateStatus(selected.id, status);
   };
 
-  if (!user || !isAdmin) {
-    return null;
-  }
-
   return (
-    <Layout>
-      <div className="container mx-auto px-4 py-8 md:py-10">
+    <AdminLayout
+      title="Orders"
+      subtitle="View and advance Campus Store orders from pending to claimed."
+    >
+      <div className="px-0 md:px-1 py-1 md:py-2">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="font-heading font-extrabold text-2xl md:text-3xl tracking-tight">
@@ -260,7 +248,7 @@ export default function AdminOrders() {
           </div>
         )}
       </div>
-    </Layout>
+    </AdminLayout>
   );
 }
 

@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Search, User, ShoppingBag, Menu, X } from 'lucide-react';
 import { useCartStore } from '@/lib/cart-store';
 import { useAuthStore } from '@/lib/auth-store';
+import { useSettingsStore } from '@/lib/settings-store';
 import { useState } from 'react';
 
 const navLinks = [
@@ -15,6 +16,8 @@ export default function Header() {
   const count = useCartStore((s) => s.getCount());
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const isAdmin = useAuthStore((s) => s.isAdmin());
+  const { systemBanner } = useSettingsStore();
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -23,7 +26,7 @@ export default function Header() {
     <>
       {/* Announcement Bar */}
       <div className="bg-primary text-primary-foreground text-xs text-center py-2 px-4">
-        Pickup Only — University Economic Enterprise Unit • Payment is done at the University Cashier.
+        {systemBanner}
       </div>
 
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
@@ -42,26 +45,30 @@ export default function Header() {
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-8">
-            {navLinks.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className={`text-sm font-semibold transition-colors hover:text-accent relative
+          {!isAdmin && (
+            <nav className="hidden md:flex items-center gap-8">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.to}
+                  to={link.to}
+                  className={`text-sm font-semibold transition-colors hover:text-accent relative
                   ${location.pathname === link.to.split('?')[0] ? 'text-foreground' : 'text-muted-foreground'}
                   after:absolute after:bottom-[-2px] after:left-0 after:w-0 after:h-[2px] after:bg-accent after:transition-all hover:after:w-full
                 `}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </nav>
+          )}
 
           {/* Right Icons */}
           <div className="flex items-center gap-4">
-            <button className="text-foreground hover:text-accent transition-colors" aria-label="Search">
-              <Search className="w-5 h-5" />
-            </button>
+            {!isAdmin && (
+              <button className="text-foreground hover:text-accent transition-colors" aria-label="Search">
+                <Search className="w-5 h-5" />
+              </button>
+            )}
             <button
               className="hidden sm:flex items-center gap-1 text-foreground hover:text-accent transition-colors text-sm"
               aria-label="Account"
@@ -95,14 +102,20 @@ export default function Header() {
                 <span className="hidden md:inline-block">Login</span>
               )}
             </button>
-            <Link to="/cart" className="relative text-foreground hover:text-accent transition-colors" aria-label="Cart">
-              <ShoppingBag className="w-5 h-5" />
-              {count > 0 && (
-                <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-pill">
-                  {count}
-                </span>
-              )}
-            </Link>
+            {!isAdmin && (
+              <Link
+                to="/cart"
+                className="relative text-foreground hover:text-accent transition-colors"
+                aria-label="Cart"
+              >
+                <ShoppingBag className="w-5 h-5" />
+                {count > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-pill">
+                    {count}
+                  </span>
+                )}
+              </Link>
+            )}
             <button
               className="md:hidden text-foreground"
               onClick={() => setMobileOpen(!mobileOpen)}

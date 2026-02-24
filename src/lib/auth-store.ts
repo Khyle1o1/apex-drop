@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type UserRole = 'student' | 'alumni';
+export type UserRole = 'customer' | 'admin';
 
 export interface UserProfile {
   id: string;
@@ -13,6 +13,7 @@ export interface UserProfile {
   createdAt: string;
   role?: UserRole;
   isAdmin?: boolean;
+  isDisabled?: boolean;
 }
 
 export interface AuthState {
@@ -33,6 +34,7 @@ export interface AuthState {
   updateCurrentUser: (profile: Partial<Pick<UserProfile, 'fullName' | 'address'>>) => void;
   isAuthenticated: () => boolean;
   isAdmin: () => boolean;
+  setUserDisabled: (id: string, disabled: boolean) => void;
 }
 
 const hashPassword = (password: string) => {
@@ -52,8 +54,9 @@ const createDefaultAdmin = (): UserProfile => ({
   email: ADMIN_EMAIL.toLowerCase(),
   passwordHash: hashPassword(ADMIN_PASSWORD),
   createdAt: new Date().toISOString(),
-  role: undefined,
+  role: 'admin',
   isAdmin: true,
+  isDisabled: false,
 });
 
 export const useAuthStore = create<AuthState>()(
@@ -97,8 +100,9 @@ export const useAuthStore = create<AuthState>()(
             email: trimmedEmail,
             passwordHash: hashPassword(password),
             createdAt: now,
-            role,
+            role: role ?? 'customer',
             isAdmin: false,
+            isDisabled: false,
           };
 
           set((state) => ({
@@ -124,6 +128,10 @@ export const useAuthStore = create<AuthState>()(
             return { ok: false, error: 'account_not_found' };
           }
 
+          if (user.isDisabled) {
+            return { ok: false, error: 'account_not_found' };
+          }
+
           if (user.passwordHash !== hashPassword(password)) {
             return { ok: false, error: 'incorrect_password' };
           }
@@ -143,6 +151,18 @@ export const useAuthStore = create<AuthState>()(
           }),
         isAuthenticated: () => !!get().user,
         isAdmin: () => !!get().user?.isAdmin,
+        setUserDisabled: (id, disabled) =>
+          set((state) => ({
+            users: state.users.map((u) =>
+              u.id === id
+                ? {
+                    ...u,
+                    isDisabled: disabled,
+                  }
+                : u,
+            ),
+            user: state.user && state.user.id === id ? { ...state.user, isDisabled: disabled } : state.user,
+          })),
       };
     },
     {
