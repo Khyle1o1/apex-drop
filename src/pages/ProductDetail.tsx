@@ -7,6 +7,7 @@ import ProductImage from '@/components/product/ProductImage';
 import ProductCard from '@/components/product/ProductCard';
 import { getProductBySlug, products } from '@/lib/products';
 import { useCartStore } from '@/lib/cart-store';
+import { formatPrice } from '@/lib/format';
 import { toast } from 'sonner';
 import {
   Accordion,
@@ -31,7 +32,7 @@ export default function ProductDetail() {
     return (
       <Layout>
         <div className="container mx-auto px-4 py-20 text-center">
-          <h1 className="font-heading font-extrabold text-3xl uppercase">Product Not Found</h1>
+          <h1 className="font-heading font-extrabold text-3xl">Product Not Found</h1>
           <Link to="/shop" className="text-accent mt-4 inline-block">← Back to Shop</Link>
         </div>
       </Layout>
@@ -58,42 +59,56 @@ export default function ProductDetail() {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-6 md:py-8">
         {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-8">
-          <Link to="/" className="hover:text-accent transition-colors">Home</Link>
-          <ChevronRight className="w-3 h-3" />
-          <Link to="/shop" className="hover:text-accent transition-colors">Shop</Link>
-          <ChevronRight className="w-3 h-3" />
-          <span className="text-foreground">{product.title}</span>
+        <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-6 md:mb-8 overflow-x-auto">
+          <Link to="/" className="hover:text-accent transition-colors whitespace-nowrap">Home</Link>
+          <ChevronRight className="w-3 h-3 flex-shrink-0" />
+          <Link to="/shop" className="hover:text-accent transition-colors whitespace-nowrap">Shop</Link>
+          <ChevronRight className="w-3 h-3 flex-shrink-0" />
+          <span className="text-foreground truncate">{product.title}</span>
         </nav>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
           {/* Gallery */}
-          <div className="rounded-card overflow-hidden aspect-square bg-muted">
+          <div className="rounded-xl overflow-hidden aspect-square bg-muted border border-border">
             <ProductImage product={product} variant={selectedVariant} className="w-full h-full" />
           </div>
 
           {/* Details */}
           <div className="flex flex-col">
             {product.badge && (
-              <span className={`self-start px-3 py-1 rounded-pill text-[11px] font-bold uppercase tracking-wider mb-4
-                ${product.badge === 'New' ? 'bg-accent text-accent-foreground' : 'bg-destructive text-destructive-foreground'}
+              <span className={`self-start px-3 py-1 rounded-pill text-[11px] font-bold tracking-wider mb-3
+                ${product.badge === 'New' ? 'bg-accent text-accent-foreground' : ''}
+                ${product.badge === 'Bestseller' ? 'bg-primary text-primary-foreground' : ''}
+                ${product.badge === 'Limited' || product.badge === 'Sale' ? 'bg-destructive text-destructive-foreground' : ''}
               `}>
                 {product.badge}
               </span>
             )}
 
-            <h1 className="font-heading font-black text-3xl md:text-4xl uppercase tracking-tight">
+            <h1 className="font-heading font-black text-2xl md:text-3xl lg:text-4xl tracking-tight">
               {product.title}
             </h1>
 
-            <p className="text-2xl font-bold mt-3">${price.toFixed(2)}</p>
+            <p className="text-2xl font-bold mt-3">{formatPrice(price)}</p>
 
-            <p className="text-muted-foreground mt-4 leading-relaxed">{product.description}</p>
+            <p className="text-muted-foreground mt-4 leading-relaxed text-sm md:text-base">{product.description}</p>
+
+            {/* Perfect for chips */}
+            {product.tags.length > 0 && (
+              <div className="mt-4 flex gap-2 flex-wrap">
+                <span className="text-xs text-muted-foreground font-medium">Perfect for:</span>
+                {product.tags.map(tag => (
+                  <span key={tag} className="px-2.5 py-1 bg-muted text-muted-foreground text-xs rounded-pill font-medium">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* Color */}
-            <div className="mt-8">
+            <div className="mt-6">
               <p className="text-sm font-semibold mb-3">
                 Color: <span className="font-normal text-muted-foreground">{selectedVariant.colorName}</span>
               </p>
@@ -114,7 +129,7 @@ export default function ProductDetail() {
                     <button
                       key={s}
                       onClick={() => setSelectedSize(s)}
-                      className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-all
+                      className={`px-4 py-2.5 rounded-lg text-sm font-semibold border transition-all min-w-[44px] min-h-[44px]
                         ${selectedSize === s
                           ? 'border-accent bg-accent/10 text-foreground'
                           : 'border-border text-muted-foreground hover:border-foreground'}
@@ -131,7 +146,7 @@ export default function ProductDetail() {
             <button
               onClick={handleAddToCart}
               disabled={outOfStock}
-              className={`mt-8 w-full py-4 rounded-lg font-heading font-bold text-sm uppercase tracking-wider transition-all
+              className={`mt-8 w-full py-4 rounded-lg font-heading font-bold text-sm tracking-wider transition-all min-h-[48px]
                 ${outOfStock
                   ? 'bg-muted text-muted-foreground cursor-not-allowed'
                   : 'bg-primary text-primary-foreground hover:bg-secondary'}
@@ -143,27 +158,27 @@ export default function ProductDetail() {
             {/* Accordions */}
             <Accordion type="multiple" className="mt-8 border-t border-border">
               <AccordionItem value="shipping">
-                <AccordionTrigger className="font-heading font-bold text-sm uppercase tracking-wide">
+                <AccordionTrigger className="font-heading font-bold text-sm">
                   Shipping
                 </AccordionTrigger>
                 <AccordionContent className="text-sm text-muted-foreground">
-                  Free standard shipping on orders over $75. Express shipping available at checkout. Orders ship within 1-2 business days.
+                  Free shipping on orders over ₱999. Standard delivery takes 3–5 business days. Express shipping (1–2 days) available at checkout.
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="returns">
-                <AccordionTrigger className="font-heading font-bold text-sm uppercase tracking-wide">
+                <AccordionTrigger className="font-heading font-bold text-sm">
                   Returns
                 </AccordionTrigger>
                 <AccordionContent className="text-sm text-muted-foreground">
-                  30-day hassle-free returns on unworn items with tags attached. Free return shipping on domestic orders.
+                  7-day return policy on unworn items with original tags. Contact us at store@campus.edu.ph for return requests.
                 </AccordionContent>
               </AccordionItem>
-              <AccordionItem value="warranty">
-                <AccordionTrigger className="font-heading font-bold text-sm uppercase tracking-wide">
-                  Warranty
+              <AccordionItem value="care">
+                <AccordionTrigger className="font-heading font-bold text-sm">
+                  Care Instructions
                 </AccordionTrigger>
                 <AccordionContent className="text-sm text-muted-foreground">
-                  All equipment comes with a 1-year limited warranty against manufacturing defects. Apparel and accessories: 90-day quality guarantee.
+                  Machine wash cold, tumble dry low. Do not bleach. Iron on low heat if needed. See product label for specific care details.
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
@@ -172,11 +187,11 @@ export default function ProductDetail() {
 
         {/* Related */}
         {related.length > 0 && (
-          <section className="mt-20 mb-10">
-            <h2 className="font-heading font-extrabold text-2xl uppercase tracking-tight mb-8">
+          <section className="mt-16 mb-10">
+            <h2 className="font-heading font-extrabold text-xl md:text-2xl tracking-tight mb-8">
               You May Also Like
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
               {related.map(p => <ProductCard key={p.id} product={p} />)}
             </div>
           </section>
