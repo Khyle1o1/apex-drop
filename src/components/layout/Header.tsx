@@ -14,6 +14,7 @@ const navLinks = [
 export default function Header() {
   const count = useCartStore((s) => s.getCount());
   const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -74,9 +75,22 @@ export default function Header() {
             >
               <User className="w-5 h-5" />
               {user ? (
-                <span className="hidden md:inline-block truncate max-w-[120px]">
-                  {user.fullName.split(' ')[0]}
-                </span>
+                <>
+                  <span className="hidden md:inline-block truncate max-w-[100px]">
+                    {user.fullName.split(' ')[0]}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      logout();
+                      navigate('/');
+                    }}
+                    className="text-[11px] font-semibold text-muted-foreground hover:text-destructive ml-1"
+                  >
+                    Logout
+                  </button>
+                </>
               ) : (
                 <span className="hidden md:inline-block">Login</span>
               )}
@@ -113,6 +127,21 @@ export default function Header() {
                   {link.label}
                 </Link>
               ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileOpen(false);
+                  if (user) {
+                    logout();
+                    navigate('/');
+                  } else {
+                    navigate('/login');
+                  }
+                }}
+                className="text-base font-semibold text-foreground hover:text-accent transition-colors py-2 border-t border-border mt-2 text-left"
+              >
+                {user ? 'Logout' : 'Login'}
+              </button>
               <Link
                 to="/support"
                 onClick={() => setMobileOpen(false)}
