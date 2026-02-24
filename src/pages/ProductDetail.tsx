@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import ColorSwatches from '@/components/product/ColorSwatches';
@@ -15,12 +15,16 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import { useAuthStore } from '@/lib/auth-store';
 
 export default function ProductDetail() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const product = getProductBySlug(slug || '');
   const addItem = useCartStore(s => s.addItem);
+  const isAuthenticated = useAuthStore(s => s.isAuthenticated());
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const variantParam = searchParams.get('variant');
   const initialVariant = product?.variants.find(v => v.variantId === variantParam) || product?.variants[0];
@@ -51,6 +55,11 @@ export default function ProductDetail() {
 
   const handleAddToCart = () => {
     if (outOfStock) return;
+    if (!isAuthenticated) {
+      const from = encodeURIComponent(location.pathname + location.search);
+      navigate(`/login?reason=login_required&from=${from}`);
+      return;
+    }
     addItem(product, selectedVariant, selectedSize || undefined);
     toast.success(`${product.title} – ${selectedVariant.colorName} added to cart`);
   };
@@ -159,10 +168,11 @@ export default function ProductDetail() {
             <Accordion type="multiple" className="mt-8 border-t border-border">
               <AccordionItem value="shipping">
                 <AccordionTrigger className="font-heading font-bold text-sm">
-                  Shipping
+                  Pickup & Payment
                 </AccordionTrigger>
                 <AccordionContent className="text-sm text-muted-foreground">
-                  Free shipping on orders over ₱999. Standard delivery takes 3–5 business days. Express shipping (1–2 days) available at checkout.
+                  Pickup Only — University Economic Enterprise Unit. Payment is done at the University Cashier.
+                  Bring the official cashier receipt to claim your merch.
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="returns">

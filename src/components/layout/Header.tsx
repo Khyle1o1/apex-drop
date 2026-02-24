@@ -1,6 +1,7 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Search, User, ShoppingBag, Menu, X } from 'lucide-react';
 import { useCartStore } from '@/lib/cart-store';
+import { useAuthStore } from '@/lib/auth-store';
 import { useState } from 'react';
 
 const navLinks = [
@@ -12,14 +13,16 @@ const navLinks = [
 
 export default function Header() {
   const count = useCartStore((s) => s.getCount());
+  const user = useAuthStore((s) => s.user);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   return (
     <>
       {/* Announcement Bar */}
       <div className="bg-primary text-primary-foreground text-xs text-center py-2 px-4">
-        Free shipping for orders over ₱999 • Student discounts available
+        Pickup Only — University Economic Enterprise Unit • Payment is done at the University Cashier.
       </div>
 
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
@@ -58,8 +61,25 @@ export default function Header() {
             <button className="text-foreground hover:text-accent transition-colors" aria-label="Search">
               <Search className="w-5 h-5" />
             </button>
-            <button className="hidden sm:block text-foreground hover:text-accent transition-colors" aria-label="Account">
+            <button
+              className="hidden sm:flex items-center gap-1 text-foreground hover:text-accent transition-colors text-sm"
+              aria-label="Account"
+              onClick={() => {
+                if (user) {
+                  navigate('/profile');
+                } else {
+                  navigate('/login');
+                }
+              }}
+            >
               <User className="w-5 h-5" />
+              {user ? (
+                <span className="hidden md:inline-block truncate max-w-[120px]">
+                  {user.fullName.split(' ')[0]}
+                </span>
+              ) : (
+                <span className="hidden md:inline-block">Login</span>
+              )}
             </button>
             <Link to="/cart" className="relative text-foreground hover:text-accent transition-colors" aria-label="Cart">
               <ShoppingBag className="w-5 h-5" />

@@ -1,30 +1,54 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import { useCartStore } from '@/lib/cart-store';
 import { formatPrice } from '@/lib/format';
+import { useAuthStore } from '@/lib/auth-store';
+import { useOrderStore } from '@/lib/order-store';
 
 export default function Checkout() {
   const { items, getTotal, clearCart } = useCartStore();
   const navigate = useNavigate();
   const total = getTotal();
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const user = useAuthStore(s => s.user);
+  const isAuthenticated = useAuthStore(s => s.isAuthenticated());
+  const updateCurrentUser = useAuthStore(s => s.updateCurrentUser);
+  const createOrder = useOrderStore(s => s.createOrder);
 
-  const [form, setForm] = useState({
-    email: '', firstName: '', lastName: '',
-    address: '', city: '', province: '', zip: '', country: 'PH',
-    shippingMethod: 'standard',
-  });
+  const [notes, setNotes] = useState('');
+  const [buyerName, setBuyerName] = useState(user?.fullName ?? '');
+  const [buyerAddress, setBuyerAddress] = useState(user?.address ?? '');
 
-  const shippingCost = form.shippingMethod === 'express' ? 250 : (total >= 999 ? 0 : 150);
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate(`/login?from=/checkout&reason=login_required`, { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
-  const update = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
+  useEffect(() => {
+    if (user) {
+      setBuyerName(user.fullName);
+      setBuyerAddress(user.address);
+    }
+  }, [user]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) return;
+    const finalName = buyerName.trim() || user.fullName;
+    const finalAddress = buyerAddress.trim() || user.address;
+    updateCurrentUser({ fullName: finalName, address: finalAddress });
+    const userForOrder = { ...user, fullName: finalName, address: finalAddress };
+    const order = createOrder({
+      user: userForOrder,
+      items,
+      subtotal: total,
+      notes: notes.trim() || undefined,
+    });
     clearCart();
-    navigate('/order/success');
+    navigate(`/order/success?ref=${encodeURIComponent(order.transactionReference)}`);
   };
 
   if (items.length === 0) {
@@ -41,55 +65,81 @@ export default function Checkout() {
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
           <div className="lg:col-span-2 space-y-8">
-            {/* Contact */}
+            {/* Buyer Information */}
             <fieldset className="space-y-4">
-              <legend className="font-heading font-bold text-sm mb-2">Contact</legend>
-              <input
-                type="email" required placeholder="Email address" value={form.email}
-                onChange={e => update('email', e.target.value)} className={inputClass}
+              <legend className="font-heading font-bold text-sm mb-2">Buyer Information</legend>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input
+                  required
+                  placeholder="Full Name"
+                  value={buyerName}
+                  onChange={e => setBuyerName(e.target.value)}
+                  className={inputClass}
+                />
+                <input
+                  required
+                  placeholder="ID Number"
+                  value={user?.idNumber || ''}
+                  readOnly
+                  className={`${inputClass} bg-muted cursor-not-allowed`}
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input
+                  type="email"
+                  required
+                  placeholder="Email"
+                  value={user?.email || ''}
+                  readOnly
+                  className={`${inputClass} bg-muted cursor-not-allowed`}
+                />
+                <input
+                  placeholder="Address"
+                  value={buyerAddress}
+                  onChange={e => setBuyerAddress(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <textarea
+                placeholder="Notes (size preferences, special requests, etc.)"
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                className={`${inputClass} resize-none min-h-[80px]`}
               />
             </fieldset>
 
-            {/* Shipping Address */}
+            {/* Pickup Details */}
             <fieldset className="space-y-4">
-              <legend className="font-heading font-bold text-sm mb-2">Shipping Address</legend>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <input required placeholder="First name" value={form.firstName} onChange={e => update('firstName', e.target.value)} className={inputClass} />
-                <input required placeholder="Last name" value={form.lastName} onChange={e => update('lastName', e.target.value)} className={inputClass} />
-              </div>
-              <input required placeholder="Address" value={form.address} onChange={e => update('address', e.target.value)} className={inputClass} />
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <input required placeholder="City" value={form.city} onChange={e => update('city', e.target.value)} className={inputClass} />
-                <input required placeholder="Province" value={form.province} onChange={e => update('province', e.target.value)} className={inputClass} />
-                <input required placeholder="ZIP Code" value={form.zip} onChange={e => update('zip', e.target.value)} className={inputClass} />
+              <legend className="font-heading font-bold text-sm mb-2">Pickup Details</legend>
+              <div className="p-4 border border-border rounded-lg bg-muted/30 text-sm space-y-1">
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Pickup Location</span>
+                  <span className="font-semibold text-right">
+                    University Economic Enterprise Unit
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Pickup Schedule</span>
+                  <span className="font-semibold text-right">Mon–Fri, 8AM–5PM</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Bring your official receipt when claiming your merch.
+                </p>
               </div>
             </fieldset>
 
-            {/* Shipping Method */}
-            <fieldset className="space-y-3">
-              <legend className="font-heading font-bold text-sm mb-2">Shipping Method</legend>
-              {[
-                { id: 'standard', label: 'Standard (3–5 days)', price: total >= 999 ? 'Free' : formatPrice(150) },
-                { id: 'express', label: 'Express (1–2 days)', price: formatPrice(250) },
-              ].map(opt => (
-                <label key={opt.id} className={`flex items-center justify-between p-4 border rounded-lg cursor-pointer transition-all min-h-[52px]
-                  ${form.shippingMethod === opt.id ? 'border-accent bg-accent/5' : 'border-border hover:border-foreground/30'}
-                `}>
-                  <div className="flex items-center gap-3">
-                    <input type="radio" name="shipping" value={opt.id} checked={form.shippingMethod === opt.id}
-                      onChange={e => update('shippingMethod', e.target.value)} className="accent-accent" />
-                    <span className="text-sm font-medium">{opt.label}</span>
-                  </div>
-                  <span className="text-sm font-semibold">{opt.price}</span>
-                </label>
-              ))}
-            </fieldset>
-
-            {/* Payment Placeholder */}
+            {/* Payment Method */}
             <fieldset className="space-y-4">
-              <legend className="font-heading font-bold text-sm mb-2">Payment</legend>
-              <div className="p-6 border border-border rounded-lg bg-muted/30 text-center text-sm text-muted-foreground">
-                Payment processing will be available in the full release. Your order will be simulated.
+              <legend className="font-heading font-bold text-sm mb-2">Payment Method</legend>
+              <div className="p-6 border border-border rounded-lg bg-muted/30 text-sm space-y-3">
+                <p className="font-semibold">
+                  Payment is done at the University Cashier.
+                </p>
+                <ol className="list-decimal list-inside space-y-1 text-muted-foreground text-sm">
+                  <li>Place order to generate a transaction reference.</li>
+                  <li>Go to University Cashier and pay.</li>
+                  <li>Present the Cashier Receipt at the University Economic Enterprise Unit to claim the item.</li>
+                </ol>
               </div>
             </fieldset>
 
@@ -129,14 +179,13 @@ export default function Checkout() {
                   <span className="text-muted-foreground">Subtotal</span>
                   <span>{formatPrice(total)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Shipping</span>
-                  <span>{shippingCost === 0 ? 'Free' : formatPrice(shippingCost)}</span>
-                </div>
                 <div className="border-t border-border pt-2 flex justify-between font-bold">
                   <span>Total</span>
-                  <span>{formatPrice(total + shippingCost)}</span>
+                  <span>{formatPrice(total)}</span>
                 </div>
+                <p className="text-xs text-muted-foreground pt-1">
+                  Pickup Only — University Economic Enterprise Unit
+                </p>
               </div>
             </div>
           </div>

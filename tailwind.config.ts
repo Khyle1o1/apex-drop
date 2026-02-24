@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        heading: ['"Barlow Condensed"', 'sans-serif'],
-        body: ['Inter', 'sans-serif'],
+        heading: ['"Poppins"', 'sans-serif'],
+        body: ['"Poppins"', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",

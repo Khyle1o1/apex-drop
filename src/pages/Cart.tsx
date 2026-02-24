@@ -1,17 +1,19 @@
-import { Link } from 'react-router-dom';
-import { Minus, Plus, Trash2, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Minus, Plus, Trash2, ChevronDown } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import { useCartStore } from '@/lib/cart-store';
 import { formatPrice } from '@/lib/format';
 import ProductImage from '@/components/product/ProductImage';
+import { useAuthStore } from '@/lib/auth-store';
 
 export default function Cart() {
   const { items, removeItem, updateQuantity, getTotal } = useCartStore();
   const total = getTotal();
-  const freeShippingThreshold = 999;
-  const shipping = total >= freeShippingThreshold ? 0 : 150;
   const [summaryOpen, setSummaryOpen] = useState(true);
+  const isAuthenticated = useAuthStore(s => s.isAuthenticated());
+  const navigate = useNavigate();
+  const location = useLocation();
 
   if (items.length === 0) {
     return (
@@ -97,29 +99,43 @@ export default function Cart() {
             <div className={`${summaryOpen ? 'block' : 'hidden lg:block'} mt-4`}>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
+                  <span className="text-muted-foreground">Items</span>
+                  <span className="font-semibold">{items.length}</span>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-muted-foreground">Subtotal</span>
                   <span className="font-semibold">{formatPrice(total)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Shipping</span>
-                  <span className="font-semibold">{shipping === 0 ? 'Free' : formatPrice(shipping)}</span>
-                </div>
-                <div className="border-t border-border pt-3 flex justify-between">
-                  <span className="font-bold">Total</span>
-                  <span className="font-bold text-lg">{formatPrice(total + shipping)}</span>
+                <div className="border-t border-border pt-3 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="font-bold">Pickup Location</span>
+                    <span className="text-right text-muted-foreground text-xs max-w-[160px]">
+                      University Economic Enterprise Unit
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-bold">Total</span>
+                    <span className="font-bold text-lg">{formatPrice(total)}</span>
+                  </div>
                 </div>
               </div>
-              <Link
-                to="/checkout"
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    const from = encodeURIComponent(location.pathname + location.search);
+                    navigate(`/login?reason=login_required&from=${from}`);
+                    return;
+                  }
+                  navigate('/checkout');
+                }}
                 className="block text-center mt-6 w-full py-3.5 bg-primary text-primary-foreground font-heading font-bold text-sm tracking-wider rounded-lg hover:bg-secondary transition-all"
               >
                 Proceed to Checkout
-              </Link>
-              {total < freeShippingThreshold && (
-                <p className="text-xs text-muted-foreground mt-3 text-center">
-                  Add {formatPrice(freeShippingThreshold - total)} more for free shipping
-                </p>
-              )}
+              </button>
+              <p className="text-xs text-muted-foreground mt-3 text-center">
+                Pickup Only — University Economic Enterprise Unit
+              </p>
             </div>
           </div>
         </div>
