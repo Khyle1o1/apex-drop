@@ -180,17 +180,21 @@ export default function AdminDashboard() {
           aria-label="Pending orders table"
           className="overflow-hidden rounded-2xl border border-border bg-background shadow-sm"
         >
-          <div className="flex flex-col gap-4 border-b border-border/80 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6">
-            <div>
-              <h2 className="font-heading text-base font-semibold tracking-tight md:text-lg">
-                Orders Queue
-              </h2>
-              <p className="mt-1 text-[11px] text-muted-foreground md:text-xs">
-                Newest first. Verify payments and mark orders for pickup or claiming.
-              </p>
+          <div className="flex flex-col gap-3 border-b border-border/80 px-4 py-4 md:px-6">
+            {/* Title row */}
+            <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="font-heading text-base font-semibold tracking-tight md:text-lg">
+                  Orders Queue
+                </h2>
+                <p className="mt-0.5 text-[11px] text-muted-foreground md:text-xs">
+                  Newest first. Verify payments and mark orders for pickup or claiming.
+                </p>
+              </div>
             </div>
-            <div className="flex flex-1 flex-col gap-2 md:flex-row md:items-center md:justify-end">
-              <div className="relative w-full max-w-xs">
+            {/* Controls row */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
+              <div className="relative w-full sm:w-auto sm:flex-1 sm:max-w-xs">
                 <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted-foreground">
                   <ScanSearch className="h-4 w-4" />
                 </span>

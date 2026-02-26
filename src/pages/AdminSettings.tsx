@@ -24,7 +24,7 @@ export default function AdminSettings() {
     >
       <form
         onSubmit={handleSave}
-        className="max-w-2xl border border-border rounded-xl bg-background p-4 md:p-6 space-y-4"
+        className="w-full max-w-2xl border border-border rounded-xl bg-background p-4 md:p-6 space-y-4"
       >
         <div>
           <label className="block text-xs font-semibold mb-1" htmlFor="pickupLocation">

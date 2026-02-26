@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql, eq, and, gte, lte, ilike, desc, asc, inArray } from "drizzle-orm";
 import { db } from "../db/index.js";
 import {
   orders,
@@ -7,12 +7,45 @@ import {
   products,
   categories,
   variants,
+  variantSizes,
   inventory,
+  users,
 } from "../db/schema.js";
-import { eq, and, gte, lte, ilike, desc, asc } from "drizzle-orm";
 import { AppError } from "../middleware/error.js";
 
 const PAID_STATUSES = ["PAID_FOR_PICKUP", "CLAIMED"] as const;
+
+// ─── Categories ───────────────────────────────────────────────────────────────
+
+export async function listCategoriesAdmin() {
+  const rows = await db
+    .select({
+      id: categories.id,
+      name: categories.name,
+      description: categories.description,
+      isActive: categories.isActive,
+      createdAt: categories.createdAt,
+    })
+    .from(categories)
+    .orderBy(asc(categories.name));
+  return rows;
+}
+
+export async function createCategoryAdmin(data: { name: string; description?: string }) {
+  const [existing] = await db.select().from(categories).where(eq(categories.name, data.name)).limit(1);
+  if (existing) throw new AppError("Category already exists", 409, "CONFLICT");
+  const [cat] = await db
+    .insert(categories)
+    .values({ name: data.name, description: data.description ?? null })
+    .returning();
+  return cat!;
+}
+
+export async function deleteCategoryAdmin(categoryId: string) {
+  await db.delete(categories).where(eq(categories.id, categoryId));
+}
+
+// ─── Products ─────────────────────────────────────────────────────────────────
 
 export async function listProductsAdmin() {
   const rows = await db
@@ -20,90 +53,332 @@ export async function listProductsAdmin() {
       id: products.id,
       name: products.name,
       basePrice: products.basePrice,
+      images: products.images,
       isActive: products.isActive,
+      categoryId: products.categoryId,
       categoryName: categories.name,
+      createdAt: products.createdAt,
     })
     .from(products)
     .leftJoin(categories, eq(products.categoryId, categories.id))
     .orderBy(asc(products.name));
-  return rows;
-}
 
-export async function getProductVariantsAdmin(productId: string) {
-  const rows = await db
+  // Count variants per product
+  const variantCounts = await db
     .select({
-      id: variants.id,
-      sku: variants.sku,
-      variantName: variants.variantName,
-      size: variants.size,
-      color: variants.color,
-      isActive: variants.isActive,
-      stock: inventory.stock,
-      reserved: inventory.reserved,
+      productId: variants.productId,
+      count: sql<number>`count(*)::int`,
     })
     .from(variants)
-    .leftJoin(inventory, eq(inventory.variantId, variants.id))
-    .where(eq(variants.productId, productId))
-    .orderBy(asc(variants.variantName), asc(variants.size));
-  return rows;
+    .groupBy(variants.productId);
+
+  const countMap = new Map(variantCounts.map((r) => [r.productId, r.count]));
+  return rows.map((p) => ({ ...p, variantCount: countMap.get(p.id) ?? 0 }));
 }
 
-export async function updateVariantInventoryAdmin(
-  variantId: string,
-  data: { stock?: number; isActive?: boolean }
-) {
+export async function getProductAdmin(productId: string) {
+  const [product] = await db
+    .select({
+      id: products.id,
+      name: products.name,
+      description: products.description,
+      basePrice: products.basePrice,
+      images: products.images,
+      isActive: products.isActive,
+      categoryId: products.categoryId,
+      categoryName: categories.name,
+      createdAt: products.createdAt,
+      updatedAt: products.updatedAt,
+    })
+    .from(products)
+    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .where(eq(products.id, productId))
+    .limit(1);
+
+  if (!product) return null;
+
+  const variantRows = await db
+    .select({
+      id: variants.id,
+      variantName: variants.variantName,
+      color: variants.color,
+      priceOverride: variants.priceOverride,
+      isActive: variants.isActive,
+    })
+    .from(variants)
+    .where(eq(variants.productId, productId))
+    .orderBy(asc(variants.variantName));
+
+  const variantIds = variantRows.map((v) => v.id);
+  const sizeRows =
+    variantIds.length > 0
+      ? await db
+          .select({
+            id: variantSizes.id,
+            variantId: variantSizes.variantId,
+            size: variantSizes.size,
+            isActive: variantSizes.isActive,
+          })
+          .from(variantSizes)
+          .where(inArray(variantSizes.variantId, variantIds))
+          .orderBy(asc(variantSizes.size))
+      : [];
+
+  const sizesByVariant = new Map<string, typeof sizeRows>();
+  for (const s of sizeRows) {
+    if (!sizesByVariant.has(s.variantId)) sizesByVariant.set(s.variantId, []);
+    sizesByVariant.get(s.variantId)!.push(s);
+  }
+
+  const variantsWithSizes = variantRows.map((v) => ({
+    ...v,
+    sizes: sizesByVariant.get(v.id) ?? [],
+  }));
+
+  return { ...product, variants: variantsWithSizes };
+}
+
+interface SizeInput {
+  id?: string;
+  size: string;
+  isActive: boolean;
+}
+
+interface VariantInput {
+  id?: string;
+  name: string;
+  priceOverride?: string | null;
+  isActive: boolean;
+  sizes: SizeInput[];
+}
+
+interface ProductInput {
+  name: string;
+  categoryId: string;
+  basePrice: string;
+  images?: string[];
+  description?: string;
+  isActive: boolean;
+  variants: VariantInput[];
+}
+
+export async function createProductAdmin(data: ProductInput) {
   return await db.transaction(async (tx) => {
-    const [variant] = await tx.select().from(variants).where(eq(variants.id, variantId)).limit(1);
-    if (!variant) {
-      throw new AppError("Variant not found", 404, "NOT_FOUND");
-    }
+    const [product] = await tx
+      .insert(products)
+      .values({
+        name: data.name,
+        categoryId: data.categoryId,
+        basePrice: data.basePrice,
+        images: data.images ?? [],
+        description: data.description ?? null,
+        isActive: data.isActive,
+      })
+      .returning();
 
-    if (typeof data.isActive === "boolean") {
-      await tx
-        .update(variants)
-        .set({ isActive: data.isActive, updatedAt: new Date() })
-        .where(eq(variants.id, variantId));
-    }
+    for (const v of data.variants) {
+      const [variant] = await tx
+        .insert(variants)
+        .values({
+          productId: product!.id,
+          variantName: v.name,
+          color: v.name,
+          priceOverride: v.priceOverride ?? null,
+          isActive: v.isActive,
+        })
+        .returning();
 
-    if (typeof data.stock === "number") {
-      const [inv] = await tx
-        .select()
-        .from(inventory)
-        .where(eq(inventory.variantId, variantId))
-        .limit(1);
-      if (inv) {
-        await tx
-          .update(inventory)
-          .set({ stock: data.stock, updatedAt: new Date() })
-          .where(eq(inventory.variantId, variantId));
-      } else {
+      for (const s of v.sizes) {
+        const [vs] = await tx
+          .insert(variantSizes)
+          .values({
+            variantId: variant!.id,
+            size: s.size,
+            isActive: s.isActive,
+          })
+          .returning();
+
         await tx.insert(inventory).values({
-          variantId,
-          stock: data.stock,
+          variantSizeId: vs!.id,
+          stock: 0,
           reserved: 0,
         });
       }
     }
 
-    const [updated] = await tx
-      .select({
-        id: variants.id,
-        sku: variants.sku,
-        variantName: variants.variantName,
-        size: variants.size,
-        color: variants.color,
-        isActive: variants.isActive,
-        stock: inventory.stock,
-        reserved: inventory.reserved,
-      })
-      .from(variants)
-      .leftJoin(inventory, eq(inventory.variantId, variants.id))
-      .where(eq(variants.id, variantId))
-      .limit(1);
-
-    return updated!;
+    return getProductAdmin(product!.id);
   });
 }
+
+export async function updateProductAdmin(productId: string, data: ProductInput) {
+  return await db.transaction(async (tx) => {
+    const [existing] = await tx.select().from(products).where(eq(products.id, productId)).limit(1);
+    if (!existing) throw new AppError("Product not found", 404, "NOT_FOUND");
+
+    await tx
+      .update(products)
+      .set({
+        name: data.name,
+        categoryId: data.categoryId,
+        basePrice: data.basePrice,
+        images: data.images ?? existing.images ?? [],
+        description: data.description ?? null,
+        isActive: data.isActive,
+        updatedAt: new Date(),
+      })
+      .where(eq(products.id, productId));
+
+    // Get existing variants
+    const existingVariants = await tx.select().from(variants).where(eq(variants.productId, productId));
+    const incomingVariantIds = data.variants.filter((v) => v.id).map((v) => v.id!);
+
+    // Delete variants not in the incoming list
+    const toDeleteVariants = existingVariants.filter((v) => !incomingVariantIds.includes(v.id));
+    for (const v of toDeleteVariants) {
+      await tx.delete(variants).where(eq(variants.id, v.id));
+    }
+
+    for (const v of data.variants) {
+      let variantId: string;
+
+      if (v.id) {
+        await tx
+          .update(variants)
+          .set({
+            variantName: v.name,
+            color: v.name,
+            priceOverride: v.priceOverride ?? null,
+            isActive: v.isActive,
+            updatedAt: new Date(),
+          })
+          .where(eq(variants.id, v.id));
+        variantId = v.id;
+      } else {
+        const [newVariant] = await tx
+          .insert(variants)
+          .values({
+            productId,
+            variantName: v.name,
+            color: v.name,
+            priceOverride: v.priceOverride ?? null,
+            isActive: v.isActive,
+          })
+          .returning();
+        variantId = newVariant!.id;
+      }
+
+      // Sync sizes
+      const existingSizes = await tx
+        .select()
+        .from(variantSizes)
+        .where(eq(variantSizes.variantId, variantId));
+
+      const incomingSizeIds = v.sizes.filter((s) => s.id).map((s) => s.id!);
+      const toDeleteSizes = existingSizes.filter((s) => !incomingSizeIds.includes(s.id));
+      for (const s of toDeleteSizes) {
+        await tx.delete(variantSizes).where(eq(variantSizes.id, s.id));
+      }
+
+      for (const s of v.sizes) {
+        if (s.id) {
+          await tx
+            .update(variantSizes)
+            .set({ size: s.size, isActive: s.isActive, updatedAt: new Date() })
+            .where(eq(variantSizes.id, s.id));
+        } else {
+          const [newVs] = await tx
+            .insert(variantSizes)
+            .values({ variantId, size: s.size, isActive: s.isActive })
+            .returning();
+          await tx.insert(inventory).values({
+            variantSizeId: newVs!.id,
+            stock: 0,
+            reserved: 0,
+          });
+        }
+      }
+    }
+
+    return getProductAdmin(productId);
+  });
+}
+
+export async function deleteProductAdmin(productId: string) {
+  const [existing] = await db.select().from(products).where(eq(products.id, productId)).limit(1);
+  if (!existing) throw new AppError("Product not found", 404, "NOT_FOUND");
+  // Cascade deletes variants → variantSizes → inventory
+  await db.delete(products).where(eq(products.id, productId));
+}
+
+// ─── Inventory ────────────────────────────────────────────────────────────────
+
+export async function listInventoryAdmin() {
+  const rows = await db
+    .select({
+      inventoryId: inventory.id,
+      variantSizeId: inventory.variantSizeId,
+      stock: inventory.stock,
+      reserved: inventory.reserved,
+      updatedAt: inventory.updatedAt,
+      size: variantSizes.size,
+      sizeIsActive: variantSizes.isActive,
+      variantId: variants.id,
+      variantName: variants.variantName,
+      color: variants.color,
+      priceOverride: variants.priceOverride,
+      variantIsActive: variants.isActive,
+      productId: products.id,
+      productName: products.name,
+      basePrice: products.basePrice,
+      productIsActive: products.isActive,
+      categoryName: categories.name,
+    })
+    .from(inventory)
+    .innerJoin(variantSizes, eq(inventory.variantSizeId, variantSizes.id))
+    .innerJoin(variants, eq(variantSizes.variantId, variants.id))
+    .innerJoin(products, eq(variants.productId, products.id))
+    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .orderBy(asc(products.name), asc(variants.variantName), asc(variantSizes.size));
+
+  return rows.map((r) => ({
+    ...r,
+    priceApplied: r.priceOverride ?? r.basePrice,
+    priceSource: r.priceOverride ? "variant" : "base",
+  }));
+}
+
+export async function updateInventoryAdmin(variantSizeId: string, stock: number) {
+  const [inv] = await db
+    .select()
+    .from(inventory)
+    .where(eq(inventory.variantSizeId, variantSizeId))
+    .limit(1);
+
+  if (!inv) throw new AppError("Inventory record not found", 404, "NOT_FOUND");
+
+  await db
+    .update(inventory)
+    .set({ stock, updatedAt: new Date() })
+    .where(eq(inventory.variantSizeId, variantSizeId));
+
+  return { variantSizeId, stock };
+}
+
+export async function updateVariantSizeStatusAdmin(variantSizeId: string, isActive: boolean) {
+  const [vs] = await db
+    .select()
+    .from(variantSizes)
+    .where(eq(variantSizes.id, variantSizeId))
+    .limit(1);
+  if (!vs) throw new AppError("Variant size not found", 404, "NOT_FOUND");
+  await db
+    .update(variantSizes)
+    .set({ isActive, updatedAt: new Date() })
+    .where(eq(variantSizes.id, variantSizeId));
+  return { variantSizeId, isActive };
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export async function getDashboard() {
   const [totalSales] = await db
@@ -123,6 +398,8 @@ export async function getDashboard() {
     totalOrders: ordersCount?.count ?? 0,
   };
 }
+
+// ─── Orders ───────────────────────────────────────────────────────────────────
 
 export async function listOrdersAdmin(opts: {
   status?: string;
@@ -186,12 +463,7 @@ export async function verifyPayment(
   if (body.approve) {
     await db
       .update(payments)
-      .set({
-        status: "VERIFIED",
-        verifiedByAdminId: adminId,
-        verifiedAt: now,
-        updatedAt: now,
-      })
+      .set({ status: "VERIFIED", verifiedByAdminId: adminId, verifiedAt: now, updatedAt: now })
       .where(eq(payments.orderId, orderId));
     await db
       .update(orders)
@@ -200,12 +472,7 @@ export async function verifyPayment(
   } else {
     await db
       .update(payments)
-      .set({
-        status: "REJECTED",
-        verifiedByAdminId: adminId,
-        verifiedAt: now,
-        updatedAt: now,
-      })
+      .set({ status: "REJECTED", verifiedByAdminId: adminId, verifiedAt: now, updatedAt: now })
       .where(eq(payments.orderId, orderId));
     await db
       .update(orders)
@@ -215,6 +482,8 @@ export async function verifyPayment(
   const [updated] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
   return updated!;
 }
+
+// ─── Reports ──────────────────────────────────────────────────────────────────
 
 export async function getSalesSummary() {
   const result = await db
@@ -241,4 +510,21 @@ export async function getTopProducts(limit: number = 10) {
     .orderBy(desc(sql`SUM(${orderItems.quantity})`))
     .limit(limit);
   return result;
+}
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+
+export async function listUsersAdmin() {
+  return await db
+    .select({
+      id: users.id,
+      fullName: users.fullName,
+      idNumber: users.idNumber,
+      email: users.email,
+      role: users.role,
+      isActive: users.isActive,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .orderBy(asc(users.fullName));
 }

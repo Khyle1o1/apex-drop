@@ -9,7 +9,6 @@ import {
   jsonb,
   integer,
   uniqueIndex,
-  primaryKey,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -69,14 +68,14 @@ export const products = pgTable("products", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Variants represent a color/style option (e.g. "Navy", "Maroon") — no size at this level
 export const variants = pgTable("variants", {
   id: uuid("id").primaryKey().defaultRandom(),
   productId: uuid("product_id")
     .notNull()
     .references(() => products.id, { onDelete: "cascade" }),
-  sku: varchar("sku", { length: 128 }).notNull().unique(),
+  sku: varchar("sku", { length: 128 }).unique(),
   variantName: varchar("variant_name", { length: 255 }),
-  size: varchar("size", { length: 64 }),
   color: varchar("color", { length: 64 }),
   priceOverride: decimal("price_override", { precision: 12, scale: 2 }),
   isActive: boolean("is_active").notNull().default(true),
@@ -84,12 +83,29 @@ export const variants = pgTable("variants", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Sizes under a variant — each variant-size is one stockable unit
+export const variantSizes = pgTable(
+  "variant_sizes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    variantId: uuid("variant_id")
+      .notNull()
+      .references(() => variants.id, { onDelete: "cascade" }),
+    size: varchar("size", { length: 64 }).notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("variant_sizes_variant_size").on(t.variantId, t.size)]
+);
+
+// Stock tracked at variant-size level
 export const inventory = pgTable("inventory", {
   id: uuid("id").primaryKey().defaultRandom(),
-  variantId: uuid("variant_id")
+  variantSizeId: uuid("variant_size_id")
     .notNull()
     .unique()
-    .references(() => variants.id, { onDelete: "cascade" }),
+    .references(() => variantSizes.id, { onDelete: "cascade" }),
   stock: integer("stock").notNull().default(0),
   reserved: integer("reserved").notNull().default(0),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -127,15 +143,15 @@ export const cartItems = pgTable(
     cartId: uuid("cart_id")
       .notNull()
       .references(() => carts.id, { onDelete: "cascade" }),
-    variantId: uuid("variant_id")
+    variantSizeId: uuid("variant_size_id")
       .notNull()
-      .references(() => variants.id, { onDelete: "cascade" }),
+      .references(() => variantSizes.id, { onDelete: "cascade" }),
     quantity: integer("quantity").notNull(),
     unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("cart_items_cart_variant").on(t.cartId, t.variantId)]
+  (t) => [uniqueIndex("cart_items_cart_vs").on(t.cartId, t.variantSizeId)]
 );
 
 export const orderCounters = pgTable("order_counters", {
@@ -168,7 +184,7 @@ export const orderItems = pgTable("order_items", {
   orderId: uuid("order_id")
     .notNull()
     .references(() => orders.id, { onDelete: "cascade" }),
-  variantId: uuid("variant_id").references(() => variants.id, { onDelete: "set null" }),
+  variantSizeId: uuid("variant_size_id").references(() => variantSizes.id, { onDelete: "set null" }),
   productNameSnapshot: varchar("product_name_snapshot", { length: 255 }).notNull(),
   variantSnapshot: jsonb("variant_snapshot").$type<Record<string, unknown>>(),
   unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
@@ -200,7 +216,8 @@ export const settings = pgTable("settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-// Relations
+// ─── Relations ───────────────────────────────────────────────────────────────
+
 export const usersRelations = relations(users, ({ many, one }) => ({
   refreshTokens: many(refreshTokens),
   carts: one(carts),
@@ -218,9 +235,18 @@ export const productsRelations = relations(products, ({ one, many }) => ({
 
 export const variantsRelations = relations(variants, ({ one, many }) => ({
   product: one(products),
+  variantSizes: many(variantSizes),
+}));
+
+export const variantSizesRelations = relations(variantSizes, ({ one, many }) => ({
+  variant: one(variants),
   inventory: one(inventory),
   cartItems: many(cartItems),
   orderItems: many(orderItems),
+}));
+
+export const inventoryRelations = relations(inventory, ({ one }) => ({
+  variantSize: one(variantSizes),
 }));
 
 export const cartsRelations = relations(carts, ({ one, many }) => ({
@@ -230,7 +256,7 @@ export const cartsRelations = relations(carts, ({ one, many }) => ({
 
 export const cartItemsRelations = relations(cartItems, ({ one }) => ({
   cart: one(carts),
-  variant: one(variants),
+  variantSize: one(variantSizes),
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
@@ -241,14 +267,10 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
 
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({
   order: one(orders),
-  variant: one(variants),
+  variantSize: one(variantSizes),
 }));
 
 export const paymentsRelations = relations(payments, ({ one }) => ({
   order: one(orders),
   verifiedByAdmin: one(users),
-}));
-
-export const inventoryRelations = relations(inventory, ({ one }) => ({
-  variant: one(variants),
 }));

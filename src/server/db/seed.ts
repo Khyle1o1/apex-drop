@@ -6,6 +6,7 @@ import {
   categories,
   products,
   variants,
+  variantSizes,
   inventory,
   settings,
   promotions,
@@ -19,6 +20,7 @@ async function seed() {
   const passwordHash = await bcrypt.hash("Admin123!", SALT_ROUNDS);
   const userHash = await bcrypt.hash("User123!", SALT_ROUNDS);
 
+  // Seed admin and sample user (idempotent)
   const existingAdmin = await db.select().from(users).where(eq(users.email, "admin@local.dev")).limit(1);
   if (existingAdmin.length === 0) {
     await db.insert(users).values({
@@ -42,7 +44,7 @@ async function seed() {
     });
   }
 
-  // Seed categories based on frontend demo products
+  // Seed categories (idempotent by name)
   const categoryIds = new Map<string, string>();
   const categoryNames = Array.from(new Set(demoProducts.map((p) => p.category)));
 
@@ -51,18 +53,15 @@ async function seed() {
     if (!existing) {
       [existing] = await db
         .insert(categories)
-        .values({
-          name,
-          description: `${name} merchandise`,
-          isActive: true,
-        })
+        .values({ name, description: `${name} merchandise`, isActive: true })
         .returning();
     }
     if (existing) categoryIds.set(name, existing.id);
   }
 
-  // Reset catalog tables so reseeding stays in sync with frontend demo data
+  // Reset catalog tables (inventory → variantSizes → variants → products)
   await db.delete(inventory);
+  await db.delete(variantSizes);
   await db.delete(variants);
   await db.delete(products);
 
@@ -95,17 +94,41 @@ async function seed() {
           variantName: v.colorName,
           color: v.colorName,
           priceOverride: typeof v.priceOverride === "number" ? v.priceOverride.toFixed(2) : null,
-          isActive: v.stockStatus === "inStock",
+          isActive: v.stockStatus !== "outOfStock",
         })
         .returning({ id: variants.id });
 
       if (!variantRow) continue;
 
-      const stock = v.stockStatus === "inStock" ? 50 : 0;
-      await db.insert(inventory).values({ variantId: variantRow.id, stock, reserved: 0 });
+      // Sizes are defined at the product level in the frontend demo data
+      const sizesToSeed: string[] =
+        p.sizes && p.sizes.length > 0
+          ? p.sizes
+          : ["S", "M", "L", "XL"];
+
+      for (const size of sizesToSeed) {
+        const [vsRow] = await db
+          .insert(variantSizes)
+          .values({
+            variantId: variantRow.id,
+            size,
+            isActive: v.stockStatus !== "outOfStock",
+          })
+          .returning({ id: variantSizes.id });
+
+        if (!vsRow) continue;
+
+        const stock = v.stockStatus === "inStock" ? 50 : 0;
+        await db.insert(inventory).values({
+          variantSizeId: vsRow.id,
+          stock,
+          reserved: 0,
+        });
+      }
     }
   }
 
+  // Promotions
   const now = new Date();
   const nextYear = new Date(now);
   nextYear.setFullYear(nextYear.getFullYear() + 1);
@@ -123,6 +146,7 @@ async function seed() {
     })
     .onConflictDoNothing({ target: promotions.code });
 
+  // Settings
   await db.delete(settings);
   await db.insert(settings).values({
     storeName: "Campus Merch Store",

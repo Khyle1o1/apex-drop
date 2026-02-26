@@ -52,35 +52,33 @@ export default function AdminOrders() {
       title="Orders"
       subtitle="View and advance Campus Store orders from pending to claimed."
     >
-      <div className="px-0 md:px-1 py-1 md:py-2">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="font-heading font-extrabold text-2xl md:text-3xl tracking-tight">
-              Admin — Orders
-            </h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              Economic Enterprise Unit view for verifying payments and marking pickups as claimed.
-            </p>
-          </div>
-          <div className="flex items-center gap-3 text-sm">
-            <span className="text-muted-foreground text-xs">Filter by status</span>
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value as any)}
-              className="border border-border rounded-md px-3 py-2 text-xs bg-background"
-            >
-              {filterOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+      <div className="w-full min-w-0">
+        {/* Filter / search controls */}
+        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground">
+            Economic Enterprise Unit view — verify payments and mark pickups as claimed.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="flex items-center gap-2">
+              <span className="shrink-0 text-muted-foreground text-xs">Status</span>
+              <select
+                value={filter}
+                onChange={(e) => setFilter(e.target.value as any)}
+                className="flex-1 border border-border rounded-md px-3 py-2 text-xs bg-background sm:flex-none"
+              >
+                {filterOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <input
               type="text"
               placeholder="Search by reference or ID number"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="border border-border rounded-md px-3 py-2 text-xs bg-background min-w-[220px]"
+              className="w-full border border-border rounded-md px-3 py-2 text-xs bg-background sm:w-auto sm:min-w-[200px]"
             />
           </div>
         </div>

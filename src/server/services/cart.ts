@@ -1,4 +1,4 @@
-import { db, carts, cartItems, variants, products, inventory, promotions } from "../db/index.js";
+import { db, carts, cartItems, variants, variantSizes, products, inventory, promotions } from "../db/index.js";
 import { eq, and } from "drizzle-orm";
 import { AppError } from "../middleware/error.js";
 import type { AddCartItemBody, UpdateCartItemBody } from "../validators/cart.js";
@@ -12,17 +12,18 @@ export async function getOrCreateCart(userId: string) {
   const items = await db
     .select({
       id: cartItems.id,
-      variantId: cartItems.variantId,
+      variantSizeId: cartItems.variantSizeId,
       quantity: cartItems.quantity,
       unitPrice: cartItems.unitPrice,
       productName: products.name,
       variantName: variants.variantName,
-      size: variants.size,
       color: variants.color,
       sku: variants.sku,
+      size: variantSizes.size,
     })
     .from(cartItems)
-    .innerJoin(variants, eq(cartItems.variantId, variants.id))
+    .innerJoin(variantSizes, eq(cartItems.variantSizeId, variantSizes.id))
+    .innerJoin(variants, eq(variantSizes.variantId, variants.id))
     .innerJoin(products, eq(variants.productId, products.id))
     .where(eq(cartItems.cartId, cart.id));
   return { cart, items, promoCode: cart.promoCode };
@@ -30,23 +31,44 @@ export async function getOrCreateCart(userId: string) {
 
 export async function addItem(userId: string, body: AddCartItemBody) {
   const { cart } = await getOrCreateCart(userId);
+
+  const [vs] = await db
+    .select()
+    .from(variantSizes)
+    .where(and(eq(variantSizes.id, body.variantSizeId), eq(variantSizes.isActive, true)))
+    .limit(1);
+  if (!vs) throw new AppError("Variant size not found", 404, "NOT_FOUND");
+
   const [variant] = await db
     .select()
     .from(variants)
-    .where(and(eq(variants.id, body.variantId), eq(variants.isActive, true)))
+    .where(and(eq(variants.id, vs.variantId), eq(variants.isActive, true)))
     .limit(1);
-  if (!variant) throw new AppError("Variant not found", 404, "NOT_FOUND");
-  const [inv] = await db.select().from(inventory).where(eq(inventory.variantId, variant.id)).limit(1);
+  if (!variant) throw new AppError("Variant not found or inactive", 404, "NOT_FOUND");
+
+  const [inv] = await db
+    .select()
+    .from(inventory)
+    .where(eq(inventory.variantSizeId, body.variantSizeId))
+    .limit(1);
   const available = (inv?.stock ?? 0) - (inv?.reserved ?? 0);
+
   const [existing] = await db
     .select()
     .from(cartItems)
-    .where(and(eq(cartItems.cartId, cart.id), eq(cartItems.variantId, body.variantId)))
+    .where(and(eq(cartItems.cartId, cart.id), eq(cartItems.variantSizeId, body.variantSizeId)))
     .limit(1);
-  const [prod] = await db.select({ basePrice: products.basePrice }).from(products).where(eq(products.id, variant.productId)).limit(1);
+
+  const [prod] = await db
+    .select({ basePrice: products.basePrice })
+    .from(products)
+    .where(eq(products.id, variant.productId))
+    .limit(1);
   const price = String(variant.priceOverride ?? prod?.basePrice ?? "0");
+
   const newQty = existing ? existing.quantity + body.quantity : body.quantity;
   if (available < newQty) throw new AppError("Insufficient stock", 400, "INSUFFICIENT_STOCK");
+
   if (existing) {
     await db
       .update(cartItems)
@@ -55,7 +77,7 @@ export async function addItem(userId: string, body: AddCartItemBody) {
   } else {
     await db.insert(cartItems).values({
       cartId: cart.id,
-      variantId: body.variantId,
+      variantSizeId: body.variantSizeId,
       quantity: body.quantity,
       unitPrice: price,
     });
@@ -67,10 +89,15 @@ export async function updateItem(userId: string, itemId: string, body: UpdateCar
   const { cart, items } = await getOrCreateCart(userId);
   const item = items.find((i) => i.id === itemId);
   if (!item) throw new AppError("Cart item not found", 404, "NOT_FOUND");
+
   if (body.quantity === 0) {
     await db.delete(cartItems).where(eq(cartItems.id, itemId));
   } else {
-    const [inv] = await db.select().from(inventory).where(eq(inventory.variantId, item.variantId)).limit(1);
+    const [inv] = await db
+      .select()
+      .from(inventory)
+      .where(eq(inventory.variantSizeId, item.variantSizeId))
+      .limit(1);
     const available = (inv?.stock ?? 0) - (inv?.reserved ?? 0);
     if (available < body.quantity) throw new AppError("Insufficient stock", 400, "INSUFFICIENT_STOCK");
     await db

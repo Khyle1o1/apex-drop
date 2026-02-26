@@ -8,6 +8,7 @@ import {
   cartItems,
   inventory,
   variants,
+  variantSizes,
   products,
   promotions,
   settings,
@@ -38,10 +39,11 @@ export async function checkout(
   const { pickupLocation, paymentInstructions } = await getSettings();
   const [cart] = await db.select().from(carts).where(eq(carts.userId, userId)).limit(1);
   if (!cart) throw new AppError("Cart not found", 404, "NOT_FOUND");
+
   const items = await db
     .select({
       id: cartItems.id,
-      variantId: cartItems.variantId,
+      variantSizeId: cartItems.variantSizeId,
       quantity: cartItems.quantity,
       unitPrice: cartItems.unitPrice,
     })
@@ -52,18 +54,34 @@ export async function checkout(
   const promoCode = opts.promoCode?.trim().toUpperCase() ?? cart.promoCode ?? null;
   let discountTotal = "0";
   let subtotal = 0;
-  const orderLines: { variantId: string; productName: string; variantSnapshot: Record<string, unknown>; unitPrice: string; quantity: number; lineTotal: number }[] = [];
+
+  const orderLines: {
+    variantSizeId: string;
+    productName: string;
+    variantSnapshot: Record<string, unknown>;
+    unitPrice: string;
+    quantity: number;
+    lineTotal: number;
+  }[] = [];
+
   for (const item of items) {
     const qty = item.quantity;
     const price = parseFloat(String(item.unitPrice));
     const lineTotal = price * qty;
     subtotal += lineTotal;
-    const [v] = await db.select().from(variants).where(eq(variants.id, item.variantId)).limit(1);
+
+    const [vs] = await db.select().from(variantSizes).where(eq(variantSizes.id, item.variantSizeId)).limit(1);
+    const [v] = vs
+      ? await db.select().from(variants).where(eq(variants.id, vs.variantId)).limit(1)
+      : [null];
     const [p] = v ? await db.select().from(products).where(eq(products.id, v.productId)).limit(1) : [null];
+
     orderLines.push({
-      variantId: item.variantId,
+      variantSizeId: item.variantSizeId,
       productName: p?.name ?? "Unknown",
-      variantSnapshot: v ? { sku: v.sku, variantName: v.variantName, size: v.size, color: v.color } : {},
+      variantSnapshot: v
+        ? { sku: v.sku, variantName: v.variantName, color: v.color, size: vs?.size }
+        : {},
       unitPrice: String(item.unitPrice),
       quantity: qty,
       lineTotal,
@@ -98,16 +116,20 @@ export async function checkout(
     const orderRef = formatOrderRef(year, seq);
 
     for (const item of items) {
-      const [inv] = await tx.select().from(inventory).where(eq(inventory.variantId, item.variantId)).limit(1);
+      const [inv] = await tx
+        .select()
+        .from(inventory)
+        .where(eq(inventory.variantSizeId, item.variantSizeId))
+        .limit(1);
       if (!inv) throw new AppError("Variant inventory not found", 400, "INVENTORY_ERROR");
       const available = inv.stock - inv.reserved;
       if (available < item.quantity) {
-        throw new AppError(`Insufficient stock for variant ${item.variantId}`, 400, "INSUFFICIENT_STOCK");
+        throw new AppError(`Insufficient stock`, 400, "INSUFFICIENT_STOCK");
       }
       await tx
         .update(inventory)
         .set({ stock: inv.stock - item.quantity, updatedAt: new Date() })
-        .where(eq(inventory.variantId, item.variantId));
+        .where(eq(inventory.variantSizeId, item.variantSizeId));
     }
 
     const [order] = await tx
@@ -130,7 +152,7 @@ export async function checkout(
     for (const line of orderLines) {
       await tx.insert(orderItems).values({
         orderId: order.id,
-        variantId: line.variantId,
+        variantSizeId: line.variantSizeId,
         productNameSnapshot: line.productName,
         variantSnapshot: line.variantSnapshot,
         unitPrice: line.unitPrice,
@@ -148,18 +170,13 @@ export async function checkout(
     await tx.delete(cartItems).where(eq(cartItems.cartId, cart.id));
     await tx.update(carts).set({ promoCode: null, updatedAt: new Date() }).where(eq(carts.id, cart.id));
 
-    const [created] = await tx
-      .select()
-      .from(orders)
-      .where(eq(orders.id, order.id))
-      .limit(1);
+    const [created] = await tx.select().from(orders).where(eq(orders.id, order.id)).limit(1);
     return created!;
   });
 }
 
 export async function listOrders(userId: string) {
-  const list = await db.select().from(orders).where(eq(orders.userId, userId));
-  return list;
+  return await db.select().from(orders).where(eq(orders.userId, userId));
 }
 
 export async function getOrder(userId: string, orderId: string) {

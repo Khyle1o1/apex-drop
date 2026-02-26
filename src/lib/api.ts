@@ -74,5 +74,8 @@ export async function apiJson<T>(path: string, init?: ApiRequestInit): Promise<T
     const err = await res.json().catch(() => ({ error: { message: res.statusText, code: "UNKNOWN" } }));
     throw new Error((err as { error?: { message?: string } })?.error?.message ?? "Request failed");
   }
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return undefined as unknown as T;
+  }
   return res.json() as Promise<T>;
 }
