@@ -33,9 +33,11 @@ export default function Header() {
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-heading font-black text-sm">C</span>
-            </div>
+            <img
+              src="/icon.png"
+              alt="Campus Store logo"
+              className="w-9 h-9 rounded-lg object-cover "
+            />
             <div className="flex flex-col leading-none">
               <span className="font-heading font-extrabold text-base tracking-tight text-foreground">
                 Campus Store
