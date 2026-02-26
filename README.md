@@ -30,11 +30,31 @@ git clone <YOUR_GIT_URL>
 cd <YOUR_PROJECT_NAME>
 
 # Step 3: Install the necessary dependencies.
-npm i
+npm i --legacy-peer-deps
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Step 4: Configure environment (backend)
+# Copy .env.example to .env and set:
+#   DATABASE_URL=postgresql://user:password@localhost:5432/apex
+#   JWT_ACCESS_SECRET=your-access-secret-min-32-characters
+#   JWT_REFRESH_SECRET=your-refresh-secret-min-32-characters
+
+# Step 5: Run database migrations and seed
+npm run db:migrate
+npm run db:seed
+
+# Step 6: Start the development server (Vite + API in one command)
 npm run dev
 ```
+
+## Backend & local development
+
+This app includes a **single full-stack setup**: the frontend (Vite + React) and the backend API (Express + Drizzle + PostgreSQL) live in the same repo. No separate `/server` folder; backend code is under `src/server`.
+
+- **One command:** `npm run dev` starts both the Vite dev server and the API (via `tsx watch`). The frontend proxies `/api` to the Express server (port 4000).
+- **Env vars:** Set `DATABASE_URL`, `JWT_ACCESS_SECRET`, and `JWT_REFRESH_SECRET` (see `.env.example` if present, or use the values above). Use secrets with at least 32 characters.
+- **Database:** PostgreSQL. Run `npm run db:generate` to generate migrations from `src/server/db/schema.ts`, `npm run db:migrate` to apply them, and `npm run db:seed` to seed an admin user (`admin@local.dev` / `Admin123!`, idNumber `ADMIN-0001`) and sample data.
+- **Production:** `npm run build` builds frontend and backend. `npm run start` runs the compiled API; in production the Express app serves the Vite `dist` and the `/api` routes. Set `NODE_ENV=production`.
+- **Frontend API client:** `src/lib/api.ts` uses the same origin (no hardcoded localhost). Tokens are stored in localStorage (MVP); document the tradeoff for production (e.g. httpOnly cookies for refresh).
 
 **Edit a file directly in GitHub**
 

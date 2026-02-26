@@ -16,8 +16,9 @@ export default function Login() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -26,27 +27,32 @@ export default function Login() {
       return;
     }
 
-    const result = login({ identifier, password });
+    setLoading(true);
+    try {
+      const result = await login({ identifier, password });
 
-    if (!result.ok) {
-      if (result.error === 'missing_identifier') {
-        setError('Please enter your Email or ID Number');
-      } else if (result.error === 'account_not_found') {
-        setError('Account not found');
-      } else if (result.error === 'incorrect_password') {
-        setError('Incorrect password');
+      if (!result.ok) {
+        if (result.error === 'missing_identifier') {
+          setError('Please enter your Email or ID Number');
+        } else if (result.error === 'account_not_found') {
+          setError('Account not found');
+        } else if (result.error === 'incorrect_password') {
+          setError('Incorrect password');
+        }
+        return;
       }
-      return;
+
+      const { user } = useAuthStore.getState();
+
+      if (user?.isAdmin) {
+        navigate('/admin/dashboard', { replace: true });
+        return;
+      }
+
+      navigate(from || '/shop', { replace: true });
+    } finally {
+      setLoading(false);
     }
-
-    const { user } = useAuthStore.getState();
-
-    if (user?.isAdmin) {
-      navigate('/admin/dashboard', { replace: true });
-      return;
-    }
-
-    navigate(from || '/shop', { replace: true });
   };
 
   const registerLink = `/register?from=${encodeURIComponent(from)}${reason ? `&reason=${encodeURIComponent(reason)}` : ''}`;
@@ -109,8 +115,8 @@ export default function Login() {
             <p>Bring the official cashier receipt to claim your merch.</p>
           </div>
 
-          <Button type="submit" className="w-full mt-2" size="lg">
-            Log In
+          <Button type="submit" className="w-full mt-2" size="lg" disabled={loading}>
+            {loading ? 'Logging in…' : 'Log In'}
           </Button>
 
           <p className="text-xs text-muted-foreground mt-3 text-center">

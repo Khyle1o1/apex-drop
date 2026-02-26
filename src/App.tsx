@@ -25,8 +25,18 @@ import AdminPromotions from "./pages/AdminPromotions";
 import AdminUsers from "./pages/AdminUsers";
 import AdminReports from "./pages/AdminReports";
 import AdminSettings from "./pages/AdminSettings";
+import { useEffect } from "react";
 import { useAuthStore } from "./lib/auth-store";
+import { getAccessToken } from "./lib/api";
 import { useToast } from "./components/ui/use-toast";
+
+function AuthInit() {
+  const fetchMe = useAuthStore((s) => s.fetchMe);
+  useEffect(() => {
+    if (getAccessToken()) fetchMe();
+  }, [fetchMe]);
+  return null;
+}
 
 function AdminRoute({ children }: { children: JSX.Element }) {
   const user = useAuthStore((s) => s.user);
@@ -70,6 +80,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <AuthInit />
         <Routes>
           <Route
             path="/"

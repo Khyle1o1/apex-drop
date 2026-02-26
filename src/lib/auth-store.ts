@@ -1,7 +1,8 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import { apiFetch, setTokens, clearTokens, getAccessToken } from "@/lib/api";
 
-export type UserRole = 'customer' | 'admin';
+export type UserRole = "customer" | "admin";
 
 export interface UserProfile {
   id: string;
@@ -9,11 +10,31 @@ export interface UserProfile {
   idNumber: string;
   address: string;
   email: string;
-  passwordHash: string;
-  createdAt: string;
+  passwordHash?: string;
+  createdAt?: string;
   role?: UserRole;
   isAdmin?: boolean;
   isDisabled?: boolean;
+}
+
+function apiUserToProfile(apiUser: {
+  id: string;
+  fullName: string;
+  idNumber: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+}): UserProfile {
+  return {
+    id: apiUser.id,
+    fullName: apiUser.fullName,
+    idNumber: apiUser.idNumber,
+    address: "",
+    email: apiUser.email,
+    role: apiUser.role === "ADMIN" ? "admin" : "customer",
+    isAdmin: apiUser.role === "ADMIN",
+    isDisabled: !apiUser.isActive,
+  };
 }
 
 export interface AuthState {
@@ -26,149 +47,159 @@ export interface AuthState {
     email: string;
     password: string;
     role?: UserRole;
-  }) => { ok: true } | { ok: false; error: string };
-  login: (payload: { identifier: string; password: string }) =>
+  }) => Promise<{ ok: true } | { ok: false; error: string }>;
+  login: (payload: { identifier: string; password: string }) => Promise<
     | { ok: true }
-    | { ok: false; error: 'account_not_found' | 'incorrect_password' | 'missing_identifier' };
-  logout: () => void;
-  updateCurrentUser: (profile: Partial<Pick<UserProfile, 'fullName' | 'address'>>) => void;
+    | { ok: false; error: "account_not_found" | "incorrect_password" | "missing_identifier" }
+  >;
+  logout: () => Promise<void>;
+  updateCurrentUser: (profile: Partial<Pick<UserProfile, "fullName" | "address">>) => void;
   isAuthenticated: () => boolean;
   isAdmin: () => boolean;
   setUserDisabled: (id: string, disabled: boolean) => void;
+  fetchMe: () => Promise<void>;
 }
-
-const hashPassword = (password: string) => {
-  // Simple reversible "hash" for demo purposes only.
-  return btoa(password);
-};
-
-const ADMIN_EMAIL = 'admin@campus.edu.ph';
-const ADMIN_ID_NUMBER = 'ADMIN-0001';
-const ADMIN_PASSWORD = 'Admin123!';
-
-const createDefaultAdmin = (): UserProfile => ({
-  id: 'admin-account',
-  fullName: 'Campus Store Admin',
-  idNumber: ADMIN_ID_NUMBER,
-  address: 'University Campus – Economic Enterprise Unit',
-  email: ADMIN_EMAIL.toLowerCase(),
-  passwordHash: hashPassword(ADMIN_PASSWORD),
-  createdAt: new Date().toISOString(),
-  role: 'admin',
-  isAdmin: true,
-  isDisabled: false,
-});
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => {
-      const ensureAdminUser = () => {
-        const current = get().users;
-        if (current.some((u) => u.isAdmin)) return current;
-        const admin = createDefaultAdmin();
-        const next = [...current, admin];
-        set({ users: next });
-        return next;
-      };
+    (set, get) => ({
+      user: null,
+      users: [],
 
-      return {
-        user: null,
-        users: [],
-        register: ({ fullName, idNumber, address, email, password, role }) => {
-          const existing = ensureAdminUser();
-          const trimmedEmail = email.trim().toLowerCase();
-          const trimmedId = idNumber.trim();
-
-          if (!trimmedEmail || !trimmedId) {
-            return { ok: false, error: 'Email and ID Number are required.' };
+      register: async (payload) => {
+        try {
+          const res = await apiFetch("/api/auth/register", {
+            method: "POST",
+            body: JSON.stringify({
+              fullName: payload.fullName,
+              idNumber: payload.idNumber,
+              address: payload.address,
+              email: payload.email,
+              password: payload.password,
+            }),
+            skipAuth: true,
+          });
+          if (res.status === 409) {
+            const err = await res.json().catch(() => ({}));
+            const msg = (err as { error?: { message?: string } })?.error?.message;
+            return { ok: false, error: msg ?? "Email or ID Number already registered." };
           }
-
-          if (existing.some((u) => u.email.toLowerCase() === trimmedEmail)) {
-            return { ok: false, error: 'Email is already registered.' };
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            const msg = (err as { error?: { message?: string } })?.error?.message;
+            return { ok: false, error: msg ?? "Registration failed." };
           }
-
-          if (existing.some((u) => u.idNumber === trimmedId)) {
-            return { ok: false, error: 'ID Number is already registered.' };
-          }
-
-          const now = new Date().toISOString();
-          const newUser: UserProfile = {
-            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            fullName: fullName.trim(),
-            idNumber: trimmedId,
-            address: address.trim(),
-            email: trimmedEmail,
-            passwordHash: hashPassword(password),
-            createdAt: now,
-            role: role ?? 'customer',
-            isAdmin: false,
-            isDisabled: false,
-          };
-
-          set((state) => ({
-            users: [...state.users, newUser],
-            user: newUser,
-          }));
-
-          return { ok: true };
-        },
-        login: ({ identifier, password }) => {
-          const trimmed = identifier.trim();
-          if (!trimmed) {
-            return { ok: false, error: 'missing_identifier' };
-          }
-
-          const users = ensureAdminUser();
-          const lower = trimmed.toLowerCase();
-          const user =
-            users.find((u) => u.email.toLowerCase() === lower) ||
-            users.find((u) => u.idNumber === trimmed);
-
-          if (!user) {
-            return { ok: false, error: 'account_not_found' };
-          }
-
-          if (user.isDisabled) {
-            return { ok: false, error: 'account_not_found' };
-          }
-
-          if (user.passwordHash !== hashPassword(password)) {
-            return { ok: false, error: 'incorrect_password' };
-          }
-
-          set({ user });
-          return { ok: true };
-        },
-        logout: () => set({ user: null }),
-        updateCurrentUser: (profile) =>
-          set((state) => {
-            if (!state.user) return state;
-            const updatedUser = { ...state.user, ...profile };
-            return {
-              user: updatedUser,
-              users: state.users.map((u) => (u.id === state.user?.id ? updatedUser : u)),
+          const data = (await res.json()) as { user: Parameters<typeof apiUserToProfile>[0] };
+          set({ user: apiUserToProfile(data.user) });
+          const loginRes = await apiFetch("/api/auth/login", {
+            method: "POST",
+            body: JSON.stringify({
+              identifier: payload.email,
+              password: payload.password,
+            }),
+            skipAuth: true,
+          });
+          if (loginRes.ok) {
+            const loginData = (await loginRes.json()) as {
+              user: Parameters<typeof apiUserToProfile>[0];
+              accessToken: string;
+              refreshToken: string;
             };
-          }),
-        isAuthenticated: () => !!get().user,
-        isAdmin: () => !!get().user?.isAdmin,
-        setUserDisabled: (id, disabled) =>
-          set((state) => ({
-            users: state.users.map((u) =>
-              u.id === id
-                ? {
-                    ...u,
-                    isDisabled: disabled,
-                  }
-                : u,
-            ),
-            user: state.user && state.user.id === id ? { ...state.user, isDisabled: disabled } : state.user,
-          })),
-      };
-    },
+            setTokens(loginData.accessToken, loginData.refreshToken);
+            set({ user: apiUserToProfile(loginData.user) });
+          }
+          return { ok: true };
+        } catch {
+          return { ok: false, error: "Registration failed. Please try again." };
+        }
+      },
+
+      login: async ({ identifier, password }) => {
+        const trimmed = identifier.trim();
+        if (!trimmed) {
+          return { ok: false, error: "missing_identifier" };
+        }
+        try {
+          const res = await apiFetch("/api/auth/login", {
+            method: "POST",
+            body: JSON.stringify({ identifier: trimmed, password }),
+            skipAuth: true,
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            const code = (err as { error?: { code?: string } })?.error?.code;
+            if (code === "INVALID_CREDENTIALS") {
+              return { ok: false, error: "incorrect_password" };
+            }
+            return { ok: false, error: "account_not_found" };
+          }
+          const data = (await res.json()) as {
+            user: Parameters<typeof apiUserToProfile>[0];
+            accessToken: string;
+            refreshToken: string;
+          };
+          setTokens(data.accessToken, data.refreshToken);
+          set({ user: apiUserToProfile(data.user) });
+          return { ok: true };
+        } catch {
+          return { ok: false, error: "account_not_found" };
+        }
+      },
+
+      logout: async () => {
+        const refresh = (await import("@/lib/api")).getRefreshToken();
+        if (refresh) {
+          try {
+            await apiFetch("/api/auth/logout", {
+              method: "POST",
+              body: JSON.stringify({ refreshToken: refresh }),
+              skipAuth: true,
+            });
+          } catch {
+            /* ignore */
+          }
+        }
+        clearTokens();
+        set({ user: null });
+      },
+
+      updateCurrentUser: (profile) =>
+        set((state) => {
+          if (!state.user) return state;
+          const updatedUser = { ...state.user, ...profile };
+          return { user: updatedUser };
+        }),
+
+      isAuthenticated: () => !!get().user || !!getAccessToken(),
+      isAdmin: () => !!get().user?.isAdmin,
+
+      setUserDisabled: (id, disabled) =>
+        set((state) => ({
+          user:
+            state.user && state.user.id === id
+              ? { ...state.user, isDisabled: disabled }
+              : state.user,
+        })),
+
+      fetchMe: async () => {
+        if (!getAccessToken()) return;
+        try {
+          const res = await apiFetch("/api/auth/me");
+          if (!res.ok) {
+            clearTokens();
+            set({ user: null });
+            return;
+          }
+          const data = (await res.json()) as { user: Parameters<typeof apiUserToProfile>[0] };
+          set({ user: apiUserToProfile(data.user) });
+        } catch {
+          set({ user: null });
+        }
+      },
+    }),
     {
-      name: 'apex-auth',
-      partialize: (state) => ({ user: state.user, users: state.users }),
+      name: "apex-auth",
+      partialize: (state) => ({ user: state.user }),
     }
   )
 );
-

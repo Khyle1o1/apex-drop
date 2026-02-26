@@ -24,12 +24,13 @@ export default function Register() {
     confirmPassword: '',
   });
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [role, setRole] = useState<'student' | 'alumni'>('student');
 
   const setField = (field: keyof typeof form, value: string) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -48,22 +49,27 @@ export default function Register() {
       return;
     }
 
-    const result = register({
-      fullName: form.fullName,
-      idNumber: form.idNumber,
-      address: form.address,
-      email: form.email,
-      password: form.password,
-      role,
-    });
+    setLoading(true);
+    try {
+      const result = await register({
+        fullName: form.fullName,
+        idNumber: form.idNumber,
+        address: form.address,
+        email: form.email,
+        password: form.password,
+        role,
+      });
 
-    if (!result.ok) {
-      setError(result.error);
-      return;
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+
+      toast.success('Account created successfully');
+      navigate(from, { replace: true });
+    } finally {
+      setLoading(false);
     }
-
-    toast.success('Account created successfully');
-    navigate(from, { replace: true });
   };
 
   const loginLink = `/login?from=${encodeURIComponent(from)}${reason ? `&reason=${encodeURIComponent(reason)}` : ''}`;
@@ -194,8 +200,8 @@ export default function Register() {
             <p>Bring the official cashier receipt to claim your merch.</p>
           </div>
 
-          <Button type="submit" className="w-full mt-2" size="lg">
-            Create Account
+          <Button type="submit" className="w-full mt-2" size="lg" disabled={loading}>
+            {loading ? 'Creating account…' : 'Create Account'}
           </Button>
 
           <p className="text-xs text-muted-foreground mt-3 text-center">

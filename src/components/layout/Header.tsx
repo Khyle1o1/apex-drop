@@ -71,39 +71,41 @@ export default function Header() {
                 <Search className="w-5 h-5" />
               </button>
             )}
-            <button
-              className="hidden sm:flex items-center gap-1 text-foreground hover:text-accent transition-colors text-sm"
-              aria-label="Account"
-              onClick={() => {
-                if (user) {
-                  navigate('/profile');
-                } else {
-                  navigate('/login');
-                }
-              }}
-            >
-              <User className="w-5 h-5" />
-              {user ? (
-                <>
+            {user ? (
+              <div className="hidden sm:flex items-center gap-1 text-sm">
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-foreground hover:text-accent transition-colors"
+                  aria-label="Account"
+                  onClick={() => navigate('/profile')}
+                >
+                  <User className="w-5 h-5" />
                   <span className="hidden md:inline-block truncate max-w-[100px]">
                     {user.fullName.split(' ')[0]}
                   </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      logout();
-                      navigate('/');
-                    }}
-                    className="text-[11px] font-semibold text-muted-foreground hover:text-destructive ml-1"
-                  >
-                    Logout
-                  </button>
-                </>
-              ) : (
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    logout();
+                    navigate('/');
+                  }}
+                  className="text-[11px] font-semibold text-muted-foreground hover:text-destructive"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="hidden sm:flex items-center gap-1 text-foreground hover:text-accent transition-colors text-sm"
+                aria-label="Account"
+                onClick={() => navigate('/login')}
+              >
+                <User className="w-5 h-5" />
                 <span className="hidden md:inline-block">Login</span>
-              )}
-            </button>
+              </button>
+            )}
             {!isAdmin && (
               <Link
                 to="/cart"
