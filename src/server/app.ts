@@ -22,7 +22,8 @@ const app = express();
 
 app.use(helmet({ contentSecurityPolicy: isProd }));
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+// Allow slightly larger JSON payloads (e.g. base64 images from admin product form)
+app.use(express.json({ limit: "2mb" }));
 app.use(apiLimiter);
 
 app.use("/api/health", healthRoutes);

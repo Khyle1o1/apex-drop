@@ -1,4 +1,13 @@
+import { apiJson } from './api';
+
 export type StockStatus = 'inStock' | 'outOfStock';
+
+export interface VariantSize {
+  id: string;
+  sizeLabel: string;
+  quantity: number;
+  isActive: boolean;
+}
 
 export interface Variant {
   variantId: string;
@@ -7,6 +16,7 @@ export interface Variant {
   imageUrls: string[];
   priceOverride?: number;
   stockStatus: StockStatus;
+  sizes?: VariantSize[];
 }
 
 export interface Product {
@@ -14,205 +24,15 @@ export interface Product {
   slug: string;
   title: string;
   description: string;
-  category: 'Apparel' | 'Accessories' | 'Stationery' | 'Bags' | 'Limited Edition';
+  category: string;
   tags: string[];
   basePrice: number;
+  displayPrice: number;
+  hasVariantPricing: boolean;
   badge?: 'New' | 'Limited' | 'Sale' | 'Bestseller';
   sizes?: string[];
   variants: Variant[];
 }
-
-export const products: Product[] = [
-  {
-    id: '1',
-    slug: 'campus-classic-hoodie',
-    title: 'Campus Classic Hoodie',
-    description: 'Heavyweight 400gsm French terry hoodie with embroidered school crest. Oversized fit, kangaroo pocket, ribbed cuffs.',
-    category: 'Apparel',
-    tags: ['Class', 'Daily use', 'Events'],
-    basePrice: 1299,
-    badge: 'Bestseller',
-    sizes: ['S', 'M', 'L', 'XL', 'XXL'],
-    variants: [
-      { variantId: 'v1-navy', colorName: 'Navy', colorHex: '#0B1026', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v1-maroon', colorName: 'Maroon', colorHex: '#800020', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v1-heather', colorName: 'Heather Gray', colorHex: '#9CA3AF', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v1-cream', colorName: 'Cream', colorHex: '#FEF3C7', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v1-forest', colorName: 'Forest Green', colorHex: '#166534', imageUrls: ['/placeholder.svg'], stockStatus: 'outOfStock' },
-    ],
-  },
-  {
-    id: '2',
-    slug: 'school-spirit-tee',
-    title: 'School Spirit Tee',
-    description: 'Soft-washed cotton tee with bold school logo print. Relaxed fit for everyday campus wear.',
-    category: 'Apparel',
-    tags: ['Class', 'Daily use'],
-    basePrice: 499,
-    badge: 'New',
-    sizes: ['S', 'M', 'L', 'XL'],
-    variants: [
-      { variantId: 'v2-white', colorName: 'White', colorHex: '#FFFFFF', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v2-navy', colorName: 'Navy', colorHex: '#0B1026', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v2-red', colorName: 'Red', colorHex: '#B41F2B', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v2-yellow', colorName: 'Gold', colorHex: '#F2C200', imageUrls: ['/placeholder.svg'], stockStatus: 'outOfStock' },
-    ],
-  },
-  {
-    id: '3',
-    slug: 'varsity-jacket',
-    title: 'Varsity Jacket',
-    description: 'Classic wool-blend varsity jacket with faux leather sleeves and chenille letter patches.',
-    category: 'Apparel',
-    tags: ['Events', 'Daily use'],
-    basePrice: 2499,
-    badge: 'Limited',
-    sizes: ['S', 'M', 'L', 'XL'],
-    variants: [
-      { variantId: 'v3-navy-cream', colorName: 'Navy/Cream', colorHex: '#0B1026', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v3-maroon-gray', colorName: 'Maroon/Gray', colorHex: '#800020', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v3-black-gold', colorName: 'Black/Gold', colorHex: '#18181B', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-    ],
-  },
-  {
-    id: '4',
-    slug: 'campus-cap',
-    title: 'Campus Cap',
-    description: 'Structured six-panel cap with embroidered school emblem. Adjustable snapback closure.',
-    category: 'Accessories',
-    tags: ['Daily use', 'Events'],
-    basePrice: 399,
-    badge: 'New',
-    variants: [
-      { variantId: 'v4-navy', colorName: 'Navy', colorHex: '#0B1026', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v4-white', colorName: 'White', colorHex: '#FFFFFF', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v4-red', colorName: 'Red', colorHex: '#B41F2B', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v4-black', colorName: 'Black', colorHex: '#18181B', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-    ],
-  },
-  {
-    id: '5',
-    slug: 'school-lanyard',
-    title: 'School Lanyard & ID Holder',
-    description: 'Durable woven lanyard with detachable ID card holder and safety breakaway clip.',
-    category: 'Accessories',
-    tags: ['Class', 'Daily use'],
-    basePrice: 149,
-    variants: [
-      { variantId: 'v5-navy', colorName: 'Navy', colorHex: '#0B1026', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v5-red', colorName: 'Red', colorHex: '#B41F2B', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v5-gold', colorName: 'Gold', colorHex: '#F2C200', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-    ],
-  },
-  {
-    id: '6',
-    slug: 'campus-enamel-pins',
-    title: 'Campus Enamel Pins – Set of 3',
-    description: 'Collectible enamel pin set featuring school mascot, crest, and founding year designs.',
-    category: 'Accessories',
-    tags: ['Events', 'Daily use'],
-    basePrice: 249,
-    badge: 'Bestseller',
-    variants: [
-      { variantId: 'v6-gold', colorName: 'Gold Finish', colorHex: '#F2C200', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v6-silver', colorName: 'Silver Finish', colorHex: '#CBD5E1', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v6-rose', colorName: 'Rose Gold', colorHex: '#F9A8D4', imageUrls: ['/placeholder.svg'], stockStatus: 'outOfStock' },
-    ],
-  },
-  {
-    id: '7',
-    slug: 'scholar-notebook',
-    title: 'Scholar Notebook – A5',
-    description: 'Premium hardcover A5 notebook with 200 pages of 100gsm dotted paper. Embossed school seal on cover.',
-    category: 'Stationery',
-    tags: ['Class', 'Daily use'],
-    basePrice: 299,
-    badge: 'New',
-    variants: [
-      { variantId: 'v7-navy', colorName: 'Navy', colorHex: '#0B1026', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v7-maroon', colorName: 'Maroon', colorHex: '#800020', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v7-tan', colorName: 'Tan', colorHex: '#D2B48C', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v7-black', colorName: 'Black', colorHex: '#18181B', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-    ],
-  },
-  {
-    id: '8',
-    slug: 'campus-sticker-pack',
-    title: 'Campus Sticker Pack – 10 pcs',
-    description: 'Waterproof vinyl sticker pack with school mascot, slogans, and campus icons. Perfect for laptops and bottles.',
-    category: 'Stationery',
-    tags: ['Daily use', 'Events'],
-    basePrice: 179,
-    variants: [
-      { variantId: 'v8-classic', colorName: 'Classic Mix', colorHex: '#0B1026', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v8-pastel', colorName: 'Pastel Edition', colorHex: '#E9D5FF', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v8-neon', colorName: 'Neon Pop', colorHex: '#84CC16', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-    ],
-  },
-  {
-    id: '9',
-    slug: 'campus-tote-bag',
-    title: 'Campus Tote Bag',
-    description: 'Heavy-duty canvas tote with reinforced handles and interior pocket. Screen-printed school logo.',
-    category: 'Bags',
-    tags: ['Class', 'Daily use'],
-    basePrice: 449,
-    badge: 'New',
-    variants: [
-      { variantId: 'v9-natural', colorName: 'Natural', colorHex: '#FEFCE8', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v9-navy', colorName: 'Navy', colorHex: '#0B1026', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v9-black', colorName: 'Black', colorHex: '#18181B', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-    ],
-  },
-  {
-    id: '10',
-    slug: 'scholar-backpack',
-    title: 'Scholar Backpack',
-    description: 'Ergonomic backpack with padded laptop compartment, water bottle pocket, and embroidered school patch.',
-    category: 'Bags',
-    tags: ['Class', 'Daily use'],
-    basePrice: 1599,
-    badge: 'Bestseller',
-    variants: [
-      { variantId: 'v10-navy', colorName: 'Navy', colorHex: '#0B1026', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v10-black', colorName: 'Black', colorHex: '#18181B', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v10-gray', colorName: 'Gray', colorHex: '#6B7280', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v10-olive', colorName: 'Olive', colorHex: '#4D7C0F', imageUrls: ['/placeholder.svg'], stockStatus: 'outOfStock' },
-    ],
-  },
-  {
-    id: '11',
-    slug: 'foundation-day-tee',
-    title: 'Foundation Day Tee – 2026',
-    description: 'Limited edition commemorative tee for Foundation Day 2026. Once they\'re gone, they\'re gone.',
-    category: 'Limited Edition',
-    tags: ['Events'],
-    basePrice: 599,
-    badge: 'Limited',
-    sizes: ['S', 'M', 'L', 'XL'],
-    variants: [
-      { variantId: 'v11-white', colorName: 'White', colorHex: '#FFFFFF', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v11-navy', colorName: 'Navy', colorHex: '#0B1026', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v11-gold', colorName: 'Gold Edition', colorHex: '#F2C200', imageUrls: ['/placeholder.svg'], priceOverride: 699, stockStatus: 'inStock' },
-      { variantId: 'v11-red', colorName: 'Crimson', colorHex: '#B41F2B', imageUrls: ['/placeholder.svg'], stockStatus: 'outOfStock' },
-    ],
-  },
-  {
-    id: '12',
-    slug: 'graduation-mug',
-    title: 'Graduation Commemorative Mug',
-    description: 'Ceramic 12oz mug with gold-accented graduation design. Microwave and dishwasher safe.',
-    category: 'Limited Edition',
-    tags: ['Events'],
-    basePrice: 349,
-    badge: 'Limited',
-    variants: [
-      { variantId: 'v12-white-gold', colorName: 'White/Gold', colorHex: '#FFFFFF', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v12-navy-gold', colorName: 'Navy/Gold', colorHex: '#0B1026', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-      { variantId: 'v12-black-gold', colorName: 'Black/Gold', colorHex: '#18181B', imageUrls: ['/placeholder.svg'], stockStatus: 'inStock' },
-    ],
-  },
-];
 
 export const collections = [
   { id: 'freshman-starter', title: 'Freshman Starter Pack', description: 'Everything you need for your first semester', image: 'new' },
@@ -220,10 +40,114 @@ export const collections = [
   { id: 'limited-drops', title: 'Limited Edition Drops', description: 'Exclusive event merch, limited stock', image: 'limited' },
 ];
 
-export function getProductBySlug(slug: string): Product | undefined {
-  return products.find(p => p.slug === slug);
+// ─── Helpers to map API catalog to frontend shape ──────────────────────────────
+
+type ApiCatalogVariantSize = {
+  id: string;
+  size: string;
+  isActive: boolean;
+  stock: number;
+};
+
+type ApiCatalogVariant = {
+  id: string;
+  name: string;
+  color: string | null;
+  priceOverride: string | null;
+  isActive: boolean;
+  stockStatus: StockStatus;
+  sizes: ApiCatalogVariantSize[];
+};
+
+type ApiCatalogProduct = {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl: string | null;
+  category: { id: string; name: string } | null;
+  basePrice: number;
+  displayPrice: number;
+  hasVariantPricing: boolean;
+  variants: ApiCatalogVariant[];
+};
+
+const colorHexMap: Record<string, string> = {
+  navy: '#0B1026',
+  maroon: '#800020',
+  black: '#18181B',
+  white: '#FFFFFF',
+  gray: '#9CA3AF',
+  'heather gray': '#9CA3AF',
+  cream: '#FEF3C7',
+  gold: '#F2C200',
+};
+
+function guessColorHex(name: string): string {
+  const key = name.toLowerCase();
+  return colorHexMap[key] ?? '#0B1026';
 }
 
-export function getProductsByCategory(category: string): Product[] {
-  return products.filter(p => p.category === category);
+function mapApiVariant(v: ApiCatalogVariant, fallbackImage: string | null): Variant {
+  const priceOverride =
+    v.priceOverride != null ? Number(v.priceOverride) : undefined;
+  const sizes: VariantSize[] =
+    v.sizes?.map((s) => ({
+      id: s.id,
+      sizeLabel: s.size,
+      quantity: s.stock ?? 0,
+      isActive: s.isActive && (s.stock ?? 0) > 0,
+    })) ?? [];
+
+  return {
+    variantId: v.id,
+    colorName: v.color ?? v.name,
+    colorHex: guessColorHex(v.color ?? v.name),
+    imageUrls: fallbackImage ? [fallbackImage] : [],
+    priceOverride,
+    stockStatus: v.stockStatus,
+    sizes,
+  };
+}
+
+function mapApiProduct(p: ApiCatalogProduct): Product {
+  const basePrice = Number(p.basePrice);
+  const variants = p.variants.map((v) => mapApiVariant(v, p.imageUrl));
+  const allSizeLabels = Array.from(
+    new Set(
+      variants.flatMap((v) => v.sizes?.map((s) => s.sizeLabel) ?? []),
+    ),
+  );
+
+  const categoryName = p.category?.name ?? 'Uncategorized';
+  const badge: Product['badge'] =
+    categoryName === 'Limited Edition' ? 'Limited' : undefined;
+
+  return {
+    id: p.id,
+    slug: p.id,
+    title: p.name,
+    description: p.description,
+    category: categoryName,
+    tags: [],
+    basePrice,
+    displayPrice: p.displayPrice ?? basePrice,
+    hasVariantPricing: p.hasVariantPricing,
+    badge,
+    sizes: allSizeLabels,
+    variants,
+  };
+}
+
+// ─── Public API used by shop/frontend ──────────────────────────────────────────
+
+export async function fetchCatalogProducts(): Promise<Product[]> {
+  const apiProducts = await apiJson<ApiCatalogProduct[]>('/api/products/catalog', {
+    skipAuth: true,
+  });
+  return apiProducts.map(mapApiProduct);
+}
+
+export async function fetchProductById(id: string): Promise<Product | undefined> {
+  const list = await fetchCatalogProducts();
+  return list.find((p) => p.id === id);
 }

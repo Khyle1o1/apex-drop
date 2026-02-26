@@ -1,11 +1,17 @@
 import { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { products } from '@/lib/products';
+import { fetchCatalogProducts, type Product } from '@/lib/products';
 import ProductCard from '@/components/product/ProductCard';
+import { useQuery } from '@tanstack/react-query';
 
 export default function ProductRail() {
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: ['catalog-products'],
+    queryFn: fetchCatalogProducts,
+  });
 
   const scroll = (dir: 'left' | 'right') => {
     if (!scrollRef.current) return;
@@ -13,7 +19,7 @@ export default function ProductRail() {
     scrollRef.current.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' });
   };
 
-  const featured = products.filter(p => p.badge);
+  const featured = products.filter((p) => p.badge);
 
   return (
     <section className="py-16 swoosh-bg">

@@ -1,8 +1,16 @@
 import { AdminLayout } from '@/components/layout/AdminLayout';
-import { products } from '@/lib/products';
+import { fetchCatalogProducts, type Product } from '@/lib/products';
+import { useQuery } from '@tanstack/react-query';
 
 export default function AdminPromotions() {
-  const limited = products.filter((p) => p.category === 'Limited Edition' || p.badge === 'Limited');
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: ['catalog-products'],
+    queryFn: fetchCatalogProducts,
+  });
+
+  const limited = products.filter(
+    (p) => p.category === 'Limited Edition' || p.badge === 'Limited',
+  );
 
   return (
     <AdminLayout

@@ -3,9 +3,10 @@ import { useSearchParams } from 'react-router-dom';
 import { Filter, X } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import ProductCard from '@/components/product/ProductCard';
-import { products } from '@/lib/products';
+import { fetchCatalogProducts, type Product } from '@/lib/products';
+import { useQuery } from '@tanstack/react-query';
 
-const categories = ['All', 'Apparel', 'Accessories', 'Stationery', 'Bags', 'Limited Edition'];
+const FALLBACK_CATEGORIES = ['All'];
 const sizeFilters = ['S', 'M', 'L', 'XL', '2XL'];
 const sortOptions = [
   { label: 'Featured', value: 'featured' },
@@ -20,6 +21,19 @@ export default function Shop() {
   const sizeFilter = searchParams.get('size') || '';
   const [sort, setSort] = useState('featured');
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const { data: products = [], isLoading } = useQuery<Product[]>({
+    queryKey: ['catalog-products'],
+    queryFn: fetchCatalogProducts,
+  });
+
+  const categories = useMemo(() => {
+    const unique = new Set<string>();
+    for (const p of products) {
+      if (p.category) unique.add(p.category);
+    }
+    return ['All', ...Array.from(unique)];
+  }, [products]);
 
   const setCategory = (cat: string) => {
     if (cat === 'All') {
@@ -40,14 +54,26 @@ export default function Shop() {
   };
 
   const filtered = useMemo(() => {
-    let result = category === 'All' ? [...products] : products.filter(p => p.category === category);
+    let result: Product[] =
+      category === 'All'
+        ? [...products]
+        : products.filter((p) => p.category === category);
     if (sizeFilter) {
       result = result.filter(p => p.sizes?.includes(sizeFilter));
     }
     switch (sort) {
-      case 'price-asc': result.sort((a, b) => a.basePrice - b.basePrice); break;
-      case 'price-desc': result.sort((a, b) => b.basePrice - a.basePrice); break;
-      case 'newest': result.sort((a, b) => (b.badge === 'New' ? 1 : 0) - (a.badge === 'New' ? 1 : 0)); break;
+      case 'price-asc':
+        result.sort((a, b) => a.displayPrice - b.displayPrice);
+        break;
+      case 'price-desc':
+        result.sort((a, b) => b.displayPrice - a.displayPrice);
+        break;
+      case 'newest':
+        result.sort(
+          (a, b) =>
+            (b.badge === 'New' ? 1 : 0) - (a.badge === 'New' ? 1 : 0),
+        );
+        break;
     }
     return result;
   }, [category, sort, sizeFilter]);
@@ -89,7 +115,7 @@ export default function Shop() {
               <div>
                 <h3 className="font-heading font-bold text-xs tracking-wider text-muted-foreground mb-3">Category</h3>
                 <div className="space-y-2">
-                  {categories.map(cat => (
+                  {(categories.length ? categories : FALLBACK_CATEGORIES).map((cat) => (
                     <button
                       key={cat}
                       onClick={() => { setCategory(cat); setFiltersOpen(false); }}

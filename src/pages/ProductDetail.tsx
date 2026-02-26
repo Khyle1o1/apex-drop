@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, useSearchParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
 import ColorSwatches from '@/components/product/ColorSwatches';
 import ProductImage from '@/components/product/ProductImage';
 import ProductCard from '@/components/product/ProductCard';
-import { getProductBySlug, products } from '@/lib/products';
+import { fetchCatalogProducts, type Product } from '@/lib/products';
 import { useCartStore } from '@/lib/cart-store';
 import { formatPrice } from '@/lib/format';
 import { toast } from 'sonner';
@@ -16,24 +16,42 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { useAuthStore } from '@/lib/auth-store';
-import { useInventoryStore } from '@/lib/inventory-store';
+import { useQuery } from '@tanstack/react-query';
 
 export default function ProductDetail() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const product = getProductBySlug(slug || '');
-  const addItem = useCartStore(s => s.addItem);
+  const { data: products = [], isLoading } = useQuery<Product[]>({
+    queryKey: ['catalog-products'],
+    queryFn: fetchCatalogProducts,
+  });
+
+  const product = useMemo(
+    () => products.find((p) => p.slug === (slug || '')),
+    [products, slug],
+  );
+  const addItem = useCartStore((s) => s.addItem);
   const isAuthenticated = useAuthStore(s => s.isAuthenticated());
   const navigate = useNavigate();
   const location = useLocation();
 
   const variantParam = searchParams.get('variant');
-  const initialVariant = product?.variants.find(v => v.variantId === variantParam) || product?.variants[0];
+  const initialVariantId = product?.variants.find((v) => v.variantId === variantParam)?.variantId
+    ?? product?.variants[0]?.variantId
+    ?? '';
 
-  const [selectedVariantId, setSelectedVariantId] = useState(initialVariant?.variantId || '');
+  const [selectedVariantId, setSelectedVariantId] = useState(initialVariantId);
   const [selectedSize, setSelectedSize] = useState('');
 
-  const getSizesForProductVariant = useInventoryStore(s => s.getSizesForProductVariant);
+  if (isLoading && !product) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-20 text-center">
+          <h1 className="font-heading font-extrabold text-2xl md:text-3xl">Loading product…</h1>
+        </div>
+      </Layout>
+    );
+  }
 
   if (!product) {
     return (
@@ -46,24 +64,27 @@ export default function ProductDetail() {
     );
   }
 
-  const selectedVariant = product.variants.find(v => v.variantId === selectedVariantId) || product.variants[0];
+  const selectedVariant =
+    product.variants.find((v) => v.variantId === selectedVariantId) ||
+    product.variants[0];
   const price = selectedVariant.priceOverride ?? product.basePrice;
 
-  const inventorySizes = getSizesForProductVariant(product.id, selectedVariant.variantId);
-  const hasInventorySizes = inventorySizes.length > 0;
-  const sizeOptions = hasInventorySizes
-    ? inventorySizes
-    : (product.sizes ?? []).map(label => ({
-        id: `${product.id}-${selectedVariant.variantId}-${label}`,
-        sizeLabel: label,
-        quantity: Number.POSITIVE_INFINITY,
-        isActive: true,
-      }));
+  const sizeOptions =
+    selectedVariant.sizes && selectedVariant.sizes.length > 0
+      ? selectedVariant.sizes
+      : (product.sizes ?? []).map((label) => ({
+          id: `${product.id}-${selectedVariant.variantId}-${label}`,
+          sizeLabel: label,
+          quantity: Number.POSITIVE_INFINITY,
+          isActive: true,
+        }));
+
   const enabledSizeOptions = sizeOptions.filter(
-    (s) => !hasInventorySizes || (s.isActive && s.quantity > 0),
+    (s) => s.isActive && s.quantity > 0,
   );
+
   const variantOutOfStock = selectedVariant.stockStatus === 'outOfStock';
-  const sizeOutOfStock = hasInventorySizes && enabledSizeOptions.length === 0;
+  const sizeOutOfStock = enabledSizeOptions.length === 0 && sizeOptions.length > 0;
   const outOfStock = variantOutOfStock || sizeOutOfStock;
 
   const handleVariantChange = (id: string) => {
