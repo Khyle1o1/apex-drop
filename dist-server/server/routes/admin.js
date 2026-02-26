@@ -2,7 +2,7 @@ import { Router } from "express";
 import { authMiddleware } from "../middleware/auth.js";
 import { requireAdmin } from "../middleware/auth.js";
 import { validateParams, validateBody, validateQuery } from "../middleware/validate.js";
-import { orderIdParamSchema, adminOrdersQuerySchema, updateOrderStatusSchema, verifyPaymentSchema, } from "../validators/admin.js";
+import { orderIdParamSchema, adminOrdersQuerySchema, updateOrderStatusSchema, verifyPaymentSchema, productIdParamSchema, variantIdParamSchema, updateVariantInventorySchema, } from "../validators/admin.js";
 import * as adminService from "../services/admin.js";
 const router = Router();
 router.use(authMiddleware, requireAdmin);
@@ -10,6 +10,33 @@ router.get("/dashboard", async (_req, res, next) => {
     try {
         const data = await adminService.getDashboard();
         res.json(data);
+    }
+    catch (e) {
+        next(e);
+    }
+});
+router.get("/products", async (_req, res, next) => {
+    try {
+        const data = await adminService.listProductsAdmin();
+        res.json(data);
+    }
+    catch (e) {
+        next(e);
+    }
+});
+router.get("/products/:id/variants", validateParams(productIdParamSchema), async (req, res, next) => {
+    try {
+        const data = await adminService.getProductVariantsAdmin(req.params.id);
+        res.json(data);
+    }
+    catch (e) {
+        next(e);
+    }
+});
+router.patch("/variants/:id", validateParams(variantIdParamSchema), validateBody(updateVariantInventorySchema), async (req, res, next) => {
+    try {
+        const updated = await adminService.updateVariantInventoryAdmin(req.params.id, req.body);
+        res.json(updated);
     }
     catch (e) {
         next(e);

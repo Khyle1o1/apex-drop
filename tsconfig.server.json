@@ -21,6 +21,6 @@
     },
     "types": ["node"]
   },
-  "include": ["src/server/**/*.ts", "src/server/**/*.tsx"],
+  "include": ["src/server/**/*.ts", "src/server/**/*.tsx", "src/lib/products.ts"],
   "exclude": ["node_modules", "dist", "dist-server", "**/*.test.ts", "**/*.spec.ts"]
 }

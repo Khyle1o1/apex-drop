@@ -6,6 +6,20 @@ export declare const orderIdParamSchema: z.ZodObject<{
 }, {
     id: string;
 }>;
+export declare const productIdParamSchema: z.ZodObject<{
+    id: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    id: string;
+}, {
+    id: string;
+}>;
+export declare const variantIdParamSchema: z.ZodObject<{
+    id: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    id: string;
+}, {
+    id: string;
+}>;
 export declare const adminOrdersQuerySchema: z.ZodObject<{
     status: z.ZodOptional<z.ZodString>;
     search: z.ZodOptional<z.ZodString>;
@@ -45,7 +59,18 @@ export declare const verifyPaymentSchema: z.ZodObject<{
     approve: boolean;
     note?: string | undefined;
 }>;
+export declare const updateVariantInventorySchema: z.ZodObject<{
+    stock: z.ZodOptional<z.ZodNumber>;
+    isActive: z.ZodOptional<z.ZodBoolean>;
+}, "strip", z.ZodTypeAny, {
+    isActive?: boolean | undefined;
+    stock?: number | undefined;
+}, {
+    isActive?: boolean | undefined;
+    stock?: number | undefined;
+}>;
 export type AdminOrdersQuery = z.infer<typeof adminOrdersQuerySchema>;
 export type UpdateOrderStatusBody = z.infer<typeof updateOrderStatusSchema>;
 export type VerifyPaymentBody = z.infer<typeof verifyPaymentSchema>;
+export type UpdateVariantInventoryBody = z.infer<typeof updateVariantInventorySchema>;
 //# sourceMappingURL=admin.d.ts.map

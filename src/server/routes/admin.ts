@@ -7,6 +7,9 @@ import {
   adminOrdersQuerySchema,
   updateOrderStatusSchema,
   verifyPaymentSchema,
+  productIdParamSchema,
+  variantIdParamSchema,
+  updateVariantInventorySchema,
 } from "../validators/admin.js";
 import * as adminService from "../services/admin.js";
 
@@ -21,6 +24,42 @@ router.get("/dashboard", async (_req, res, next) => {
     next(e);
   }
 });
+
+router.get("/products", async (_req, res, next) => {
+  try {
+    const data = await adminService.listProductsAdmin();
+    res.json(data);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get(
+  "/products/:id/variants",
+  validateParams(productIdParamSchema),
+  async (req, res, next) => {
+    try {
+      const data = await adminService.getProductVariantsAdmin(req.params.id);
+      res.json(data);
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+router.patch(
+  "/variants/:id",
+  validateParams(variantIdParamSchema),
+  validateBody(updateVariantInventorySchema),
+  async (req, res, next) => {
+    try {
+      const updated = await adminService.updateVariantInventoryAdmin(req.params.id, req.body);
+      res.json(updated);
+    } catch (e) {
+      next(e);
+    }
+  }
+);
 
 router.get("/orders", validateQuery(adminOrdersQuerySchema), async (req, res, next) => {
   try {

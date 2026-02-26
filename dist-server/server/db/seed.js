@@ -3,6 +3,7 @@ import { db } from "./index.js";
 import { eq } from "drizzle-orm";
 import { users, categories, products, variants, inventory, settings, promotions, } from "./schema.js";
 import bcrypt from "bcrypt";
+import { products as demoProducts } from "../../lib/products.js";
 const SALT_ROUNDS = 10;
 async function seed() {
     const passwordHash = await bcrypt.hash("Admin123!", SALT_ROUNDS);
@@ -29,65 +30,62 @@ async function seed() {
             role: "USER",
         });
     }
-    let [cat] = await db.select().from(categories).where(eq(categories.name, "Apparel")).limit(1);
-    if (!cat) {
-        [cat] = await db
-            .insert(categories)
-            .values({
-            name: "Apparel",
-            description: "Campus apparel and merchandise",
-            isActive: true,
-        })
-            .returning();
-    }
-    if (cat) {
-        let [prod] = await db
-            .select()
-            .from(products)
-            .where(eq(products.categoryId, cat.id))
-            .limit(1);
-        if (!prod) {
-            [prod] = await db
-                .insert(products)
+    // Seed categories based on frontend demo products
+    const categoryIds = new Map();
+    const categoryNames = Array.from(new Set(demoProducts.map((p) => p.category)));
+    for (const name of categoryNames) {
+        let [existing] = await db.select().from(categories).where(eq(categories.name, name)).limit(1);
+        if (!existing) {
+            [existing] = await db
+                .insert(categories)
                 .values({
-                categoryId: cat.id,
-                name: "Campus T-Shirt",
-                description: "Official campus t-shirt",
-                basePrice: "499.00",
-                images: ["/placeholder.svg"],
+                name,
+                description: `${name} merchandise`,
                 isActive: true,
             })
                 .returning();
         }
-        if (prod) {
-            const existingVariants = await db.select().from(variants).where(eq(variants.productId, prod.id)).limit(2);
-            if (existingVariants.length === 0) {
-                const [v1, v2] = await db
-                    .insert(variants)
-                    .values([
-                    {
-                        productId: prod.id,
-                        sku: "SHIRT-S-M",
-                        variantName: "Small",
-                        size: "S",
-                        color: "Navy",
-                        isActive: true,
-                    },
-                    {
-                        productId: prod.id,
-                        sku: "SHIRT-M-M",
-                        variantName: "Medium",
-                        size: "M",
-                        color: "Navy",
-                        isActive: true,
-                    },
-                ])
-                    .returning({ id: variants.id });
-                if (v1)
-                    await db.insert(inventory).values({ variantId: v1.id, stock: 50 });
-                if (v2)
-                    await db.insert(inventory).values({ variantId: v2.id, stock: 30 });
-            }
+        if (existing)
+            categoryIds.set(name, existing.id);
+    }
+    // Reset catalog tables so reseeding stays in sync with frontend demo data
+    await db.delete(inventory);
+    await db.delete(variants);
+    await db.delete(products);
+    for (const p of demoProducts) {
+        const categoryId = categoryIds.get(p.category);
+        if (!categoryId)
+            continue;
+        const images = Array.from(new Set(p.variants.flatMap((v) => v.imageUrls)));
+        const [productRow] = await db
+            .insert(products)
+            .values({
+            categoryId,
+            name: p.title,
+            description: p.description,
+            basePrice: p.basePrice.toFixed(2),
+            images: images.length ? images : ["/placeholder.svg"],
+            isActive: true,
+        })
+            .returning({ id: products.id });
+        if (!productRow)
+            continue;
+        for (const v of p.variants) {
+            const [variantRow] = await db
+                .insert(variants)
+                .values({
+                productId: productRow.id,
+                sku: v.variantId,
+                variantName: v.colorName,
+                color: v.colorName,
+                priceOverride: typeof v.priceOverride === "number" ? v.priceOverride.toFixed(2) : null,
+                isActive: v.stockStatus === "inStock",
+            })
+                .returning({ id: variants.id });
+            if (!variantRow)
+                continue;
+            const stock = v.stockStatus === "inStock" ? 50 : 0;
+            await db.insert(inventory).values({ variantId: variantRow.id, stock, reserved: 0 });
         }
     }
     const now = new Date();

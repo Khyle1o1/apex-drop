@@ -1,5 +1,7 @@
 import { z } from "zod";
 export const orderIdParamSchema = z.object({ id: z.string().uuid() });
+export const productIdParamSchema = z.object({ id: z.string().uuid() });
+export const variantIdParamSchema = z.object({ id: z.string().uuid() });
 export const adminOrdersQuerySchema = z.object({
     status: z.string().optional(),
     search: z.string().optional(),
@@ -14,5 +16,9 @@ export const updateOrderStatusSchema = z.object({
 export const verifyPaymentSchema = z.object({
     approve: z.boolean(),
     note: z.string().optional(),
+});
+export const updateVariantInventorySchema = z.object({
+    stock: z.number().int().min(0).optional(),
+    isActive: z.boolean().optional(),
 });
 //# sourceMappingURL=admin.js.map

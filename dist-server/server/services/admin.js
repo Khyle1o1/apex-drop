@@ -1,9 +1,91 @@
 import { sql } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { orders, orderItems, payments } from "../db/schema.js";
-import { eq, and, gte, lte, ilike, desc } from "drizzle-orm";
+import { orders, orderItems, payments, products, categories, variants, inventory, } from "../db/schema.js";
+import { eq, and, gte, lte, ilike, desc, asc } from "drizzle-orm";
 import { AppError } from "../middleware/error.js";
 const PAID_STATUSES = ["PAID_FOR_PICKUP", "CLAIMED"];
+export async function listProductsAdmin() {
+    const rows = await db
+        .select({
+        id: products.id,
+        name: products.name,
+        basePrice: products.basePrice,
+        isActive: products.isActive,
+        categoryName: categories.name,
+    })
+        .from(products)
+        .leftJoin(categories, eq(products.categoryId, categories.id))
+        .orderBy(asc(products.name));
+    return rows;
+}
+export async function getProductVariantsAdmin(productId) {
+    const rows = await db
+        .select({
+        id: variants.id,
+        sku: variants.sku,
+        variantName: variants.variantName,
+        size: variants.size,
+        color: variants.color,
+        isActive: variants.isActive,
+        stock: inventory.stock,
+        reserved: inventory.reserved,
+    })
+        .from(variants)
+        .leftJoin(inventory, eq(inventory.variantId, variants.id))
+        .where(eq(variants.productId, productId))
+        .orderBy(asc(variants.variantName), asc(variants.size));
+    return rows;
+}
+export async function updateVariantInventoryAdmin(variantId, data) {
+    return await db.transaction(async (tx) => {
+        const [variant] = await tx.select().from(variants).where(eq(variants.id, variantId)).limit(1);
+        if (!variant) {
+            throw new AppError("Variant not found", 404, "NOT_FOUND");
+        }
+        if (typeof data.isActive === "boolean") {
+            await tx
+                .update(variants)
+                .set({ isActive: data.isActive, updatedAt: new Date() })
+                .where(eq(variants.id, variantId));
+        }
+        if (typeof data.stock === "number") {
+            const [inv] = await tx
+                .select()
+                .from(inventory)
+                .where(eq(inventory.variantId, variantId))
+                .limit(1);
+            if (inv) {
+                await tx
+                    .update(inventory)
+                    .set({ stock: data.stock, updatedAt: new Date() })
+                    .where(eq(inventory.variantId, variantId));
+            }
+            else {
+                await tx.insert(inventory).values({
+                    variantId,
+                    stock: data.stock,
+                    reserved: 0,
+                });
+            }
+        }
+        const [updated] = await tx
+            .select({
+            id: variants.id,
+            sku: variants.sku,
+            variantName: variants.variantName,
+            size: variants.size,
+            color: variants.color,
+            isActive: variants.isActive,
+            stock: inventory.stock,
+            reserved: inventory.reserved,
+        })
+            .from(variants)
+            .leftJoin(inventory, eq(inventory.variantId, variants.id))
+            .where(eq(variants.id, variantId))
+            .limit(1);
+        return updated;
+    });
+}
 export async function getDashboard() {
     const [totalSales] = await db
         .select({

@@ -1,3 +1,33 @@
+export declare function listProductsAdmin(): Promise<{
+    id: string;
+    name: string;
+    basePrice: string;
+    isActive: boolean;
+    categoryName: string | null;
+}[]>;
+export declare function getProductVariantsAdmin(productId: string): Promise<{
+    id: string;
+    sku: string;
+    variantName: string | null;
+    size: string | null;
+    color: string | null;
+    isActive: boolean;
+    stock: number | null;
+    reserved: number | null;
+}[]>;
+export declare function updateVariantInventoryAdmin(variantId: string, data: {
+    stock?: number;
+    isActive?: boolean;
+}): Promise<{
+    id: string;
+    sku: string;
+    variantName: string | null;
+    size: string | null;
+    color: string | null;
+    isActive: boolean;
+    stock: number | null;
+    reserved: number | null;
+}>;
 export declare function getDashboard(): Promise<{
     totalSales: string;
     pendingPaymentVerification: number;
