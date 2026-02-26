@@ -16,6 +16,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { useAuthStore } from '@/lib/auth-store';
+import { useInventoryStore } from '@/lib/inventory-store';
 
 export default function ProductDetail() {
   const { slug } = useParams<{ slug: string }>();
@@ -30,7 +31,9 @@ export default function ProductDetail() {
   const initialVariant = product?.variants.find(v => v.variantId === variantParam) || product?.variants[0];
 
   const [selectedVariantId, setSelectedVariantId] = useState(initialVariant?.variantId || '');
-  const [selectedSize, setSelectedSize] = useState(product?.sizes?.[0] || '');
+  const [selectedSize, setSelectedSize] = useState('');
+
+  const getSizesForProductVariant = useInventoryStore(s => s.getSizesForProductVariant);
 
   if (!product) {
     return (
@@ -45,23 +48,48 @@ export default function ProductDetail() {
 
   const selectedVariant = product.variants.find(v => v.variantId === selectedVariantId) || product.variants[0];
   const price = selectedVariant.priceOverride ?? product.basePrice;
-  const outOfStock = selectedVariant.stockStatus === 'outOfStock';
+
+  const inventorySizes = getSizesForProductVariant(product.id, selectedVariant.variantId);
+  const hasInventorySizes = inventorySizes.length > 0;
+  const sizeOptions = hasInventorySizes
+    ? inventorySizes
+    : (product.sizes ?? []).map(label => ({
+        id: `${product.id}-${selectedVariant.variantId}-${label}`,
+        sizeLabel: label,
+        quantity: Number.POSITIVE_INFINITY,
+        isActive: true,
+      }));
+  const enabledSizeOptions = sizeOptions.filter(
+    (s) => !hasInventorySizes || (s.isActive && s.quantity > 0),
+  );
+  const variantOutOfStock = selectedVariant.stockStatus === 'outOfStock';
+  const sizeOutOfStock = hasInventorySizes && enabledSizeOptions.length === 0;
+  const outOfStock = variantOutOfStock || sizeOutOfStock;
 
   const handleVariantChange = (id: string) => {
     setSelectedVariantId(id);
+    setSelectedSize('');
     searchParams.set('variant', id);
     setSearchParams(searchParams, { replace: true });
   };
 
   const handleAddToCart = () => {
     if (outOfStock) return;
+    if (sizeOptions.length > 0 && !selectedSize) {
+      toast.error('Please select a size before adding to cart.');
+      return;
+    }
     if (!isAuthenticated) {
       const from = encodeURIComponent(location.pathname + location.search);
       navigate(`/login?reason=login_required&from=${from}`);
       return;
     }
     addItem(product, selectedVariant, selectedSize || undefined);
-    toast.success(`${product.title} – ${selectedVariant.colorName} added to cart`);
+    toast.success(
+      `${product.title} – ${selectedVariant.colorName}${
+        selectedSize ? ` (${selectedSize})` : ''
+      } added to cart`,
+    );
   };
 
   const related = products.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4);
@@ -130,23 +158,33 @@ export default function ProductDetail() {
             </div>
 
             {/* Size */}
-            {product.sizes && (
+            {sizeOptions.length > 0 && (
               <div className="mt-6">
                 <p className="text-sm font-semibold mb-3">Size</p>
                 <div className="flex gap-2 flex-wrap">
-                  {product.sizes.map(s => (
-                    <button
-                      key={s}
-                      onClick={() => setSelectedSize(s)}
-                      className={`px-4 py-2.5 rounded-lg text-sm font-semibold border transition-all min-w-[44px] min-h-[44px]
-                        ${selectedSize === s
-                          ? 'border-accent bg-accent/10 text-foreground'
-                          : 'border-border text-muted-foreground hover:border-foreground'}
-                      `}
-                    >
-                      {s}
-                    </button>
-                  ))}
+                  {sizeOptions.map((s) => {
+                    const isDisabled = hasInventorySizes && (!s.isActive || s.quantity <= 0);
+                    const isSelected = selectedSize === s.sizeLabel;
+                    return (
+                      <button
+                        key={s.id ?? s.sizeLabel}
+                        type="button"
+                        disabled={isDisabled}
+                        onClick={() => !isDisabled && setSelectedSize(s.sizeLabel)}
+                        className={`px-4 py-2.5 rounded-lg text-sm font-semibold border transition-all min-w-[44px] min-h-[44px]
+                          ${
+                            isSelected
+                              ? 'border-accent bg-accent/10 text-foreground'
+                              : 'border-border text-muted-foreground hover:border-foreground'
+                          }
+                          ${isDisabled ? 'opacity-60 cursor-not-allowed line-through' : ''}
+                        `}
+                      >
+                        {s.sizeLabel}
+                        {isDisabled ? ' – Out of Stock' : ''}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

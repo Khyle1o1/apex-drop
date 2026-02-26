@@ -6,6 +6,7 @@ import ProductCard from '@/components/product/ProductCard';
 import { products } from '@/lib/products';
 
 const categories = ['All', 'Apparel', 'Accessories', 'Stationery', 'Bags', 'Limited Edition'];
+const sizeFilters = ['S', 'M', 'L', 'XL', '2XL'];
 const sortOptions = [
   { label: 'Featured', value: 'featured' },
   { label: 'Price: Low to High', value: 'price-asc' },
@@ -16,6 +17,7 @@ const sortOptions = [
 export default function Shop() {
   const [searchParams, setSearchParams] = useSearchParams();
   const category = searchParams.get('category') || 'All';
+  const sizeFilter = searchParams.get('size') || '';
   const [sort, setSort] = useState('featured');
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -28,15 +30,27 @@ export default function Shop() {
     setSearchParams(searchParams);
   };
 
+  const setSizeFilter = (size: string) => {
+    if (!size) {
+      searchParams.delete('size');
+    } else {
+      searchParams.set('size', size);
+    }
+    setSearchParams(searchParams);
+  };
+
   const filtered = useMemo(() => {
     let result = category === 'All' ? [...products] : products.filter(p => p.category === category);
+    if (sizeFilter) {
+      result = result.filter(p => p.sizes?.includes(sizeFilter));
+    }
     switch (sort) {
       case 'price-asc': result.sort((a, b) => a.basePrice - b.basePrice); break;
       case 'price-desc': result.sort((a, b) => b.basePrice - a.basePrice); break;
       case 'newest': result.sort((a, b) => (b.badge === 'New' ? 1 : 0) - (a.badge === 'New' ? 1 : 0)); break;
     }
     return result;
-  }, [category, sort]);
+  }, [category, sort, sizeFilter]);
 
   return (
     <Layout>
@@ -84,6 +98,35 @@ export default function Shop() {
                       }`}
                     >
                       {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-heading font-bold text-xs tracking-wider text-muted-foreground mb-3">Size</h3>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setSizeFilter('')}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border min-h-[32px] ${
+                      !sizeFilter
+                        ? 'border-accent bg-accent/10 text-foreground'
+                        : 'border-border text-muted-foreground hover:border-foreground'
+                    }`}
+                  >
+                    Any
+                  </button>
+                  {sizeFilters.map(size => (
+                    <button
+                      key={size}
+                      onClick={() => setSizeFilter(size)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border min-h-[32px] ${
+                        sizeFilter === size
+                          ? 'border-accent bg-accent/10 text-foreground'
+                          : 'border-border text-muted-foreground hover:border-foreground'
+                      }`}
+                    >
+                      {size}
                     </button>
                   ))}
                 </div>

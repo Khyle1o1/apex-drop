@@ -6,6 +6,7 @@ import { useCartStore } from '@/lib/cart-store';
 import { formatPrice } from '@/lib/format';
 import { useAuthStore } from '@/lib/auth-store';
 import { useOrderStore } from '@/lib/order-store';
+import { useInventoryStore } from '@/lib/inventory-store';
 
 export default function Checkout() {
   const { items, getTotal, clearCart } = useCartStore();
@@ -16,6 +17,7 @@ export default function Checkout() {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated());
   const updateCurrentUser = useAuthStore(s => s.updateCurrentUser);
   const createOrder = useOrderStore(s => s.createOrder);
+  const deductForOrder = useInventoryStore(s => s.deductForOrder);
 
   const [notes, setNotes] = useState('');
   const [buyerName, setBuyerName] = useState(user?.fullName ?? '');
@@ -40,6 +42,11 @@ export default function Checkout() {
     const finalName = buyerName.trim() || user.fullName;
     const finalAddress = buyerAddress.trim() || user.address;
     updateCurrentUser({ fullName: finalName, address: finalAddress });
+    const inventoryResult = deductForOrder(items);
+    if (!inventoryResult.ok) {
+      window.alert(inventoryResult.message ?? 'Unable to place order due to stock limits.');
+      return;
+    }
     const userForOrder = { ...user, fullName: finalName, address: finalAddress };
     const order = createOrder({
       user: userForOrder,
@@ -164,12 +171,23 @@ export default function Checkout() {
             <div className={`${summaryOpen ? 'block' : 'hidden lg:block'} mt-4`}>
               <div className="space-y-3">
                 {items.map(item => (
-                  <div key={`${item.productId}-${item.variantId}-${item.size}`} className="flex justify-between text-sm">
-                    <span className="text-muted-foreground truncate mr-2">
-                      {item.product.title} × {item.quantity}
-                    </span>
+                  <div
+                    key={`${item.productId}-${item.variantId}-${item.size}`}
+                    className="flex justify-between text-sm gap-2"
+                  >
+                    <div className="text-muted-foreground truncate mr-2">
+                      <p className="truncate">
+                        {item.product.title} × {item.quantity}
+                      </p>
+                      <p className="text-[11px]">
+                        {item.variant.colorName}
+                        {item.size ? ` • Size ${item.size}` : ''}
+                      </p>
+                    </div>
                     <span className="font-semibold whitespace-nowrap">
-                      {formatPrice((item.variant.priceOverride ?? item.product.basePrice) * item.quantity)}
+                      {formatPrice(
+                        (item.variant.priceOverride ?? item.product.basePrice) * item.quantity,
+                      )}
                     </span>
                   </div>
                 ))}

@@ -175,9 +175,15 @@ export default function AdminOrders() {
                           key={`${item.productId}-${item.variantId}-${item.size}`}
                           className="flex justify-between gap-2"
                         >
-                          <span className="truncate">
-                            {item.product.title} × {item.quantity}
-                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate">
+                              {item.product.title} × {item.quantity}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {item.variant.colorName}
+                              {item.size ? ` • Size ${item.size}` : ''}
+                            </p>
+                          </div>
                           <span className="font-semibold whitespace-nowrap">
                             {formatPrice(
                               (item.variant.priceOverride ?? item.product.basePrice) * item.quantity,

@@ -26,66 +26,82 @@ export default function ProductCard({ product, initialVariantId }: ProductCardPr
     e.preventDefault();
     e.stopPropagation();
     if (selectedVariant.stockStatus === 'outOfStock') return;
+    if (product.sizes && product.sizes.length > 0) {
+      // Require explicit size selection on the product page.
+      navigate(`/product/${product.slug}?variant=${selectedId}`);
+      return;
+    }
     if (!isAuthenticated) {
       const from = encodeURIComponent(location.pathname + location.search);
       navigate(`/login?reason=login_required&from=${from}`);
       return;
     }
-    addItem(product, selectedVariant, product.sizes?.[0]);
+    addItem(product, selectedVariant, undefined);
     toast.success(`${product.title} – ${selectedVariant.colorName} added to cart`);
   };
 
+  const quickAddBaseClass =
+    'w-full h-full rounded-lg text-[11px] font-bold tracking-wider transition-colors';
+  const quickAddAvailabilityClass =
+    selectedVariant.stockStatus === 'outOfStock'
+      ? 'bg-muted text-muted-foreground cursor-not-allowed'
+      : 'bg-primary text-primary-foreground hover:bg-secondary';
+  const quickAddHoverClass =
+    selectedVariant.stockStatus !== 'outOfStock' ? 'group-hover:bg-secondary' : '';
+
+  let badgeClassName = 'absolute top-3 left-3 px-3 py-1 rounded-pill text-[11px] font-bold tracking-wider';
+  if (product.badge === 'New') {
+    badgeClassName += ' bg-accent text-accent-foreground';
+  } else if (product.badge === 'Limited' || product.badge === 'Sale') {
+    badgeClassName += ' bg-destructive text-destructive-foreground';
+  } else if (product.badge === 'Bestseller') {
+    badgeClassName += ' bg-primary text-primary-foreground';
+  }
+
   return (
     <div className="group flex flex-col">
-        <Link
-          to={`/product/${product.slug}?variant=${selectedId}`}
-          className="block relative rounded-xl overflow-hidden bg-muted aspect-[4/5] border border-border hover:shadow-md transition-shadow"
-        >
-          <ProductImage product={product} variant={selectedVariant} className="w-full h-full" />
+      <Link
+        to={`/product/${product.slug}?variant=${selectedId}`}
+        className="block relative rounded-2xl overflow-hidden bg-background aspect-[4/5] border border-border/60 shadow-sm transition-all cursor-pointer group-hover:shadow-lg"
+      >
+        <ProductImage
+          product={product}
+          variant={selectedVariant}
+          className="w-full h-full transition-transform duration-300 group-hover:scale-[1.04]"
+        />
 
-          {/* Badge */}
-          {product.badge && (
-            <span
-              className={`absolute top-3 left-3 px-3 py-1 rounded-pill text-[11px] font-bold tracking-wider
-              ${product.badge === 'New' ? 'bg-accent text-accent-foreground' : ''}
-              ${product.badge === 'Limited' ? 'bg-destructive text-destructive-foreground' : ''}
-              ${product.badge === 'Sale' ? 'bg-destructive text-destructive-foreground' : ''}
-              ${product.badge === 'Bestseller' ? 'bg-primary text-primary-foreground' : ''}
-            `}
-            >
-              {product.badge}
-            </span>
-          )}
+        {/* Badge */}
+        {product.badge && (
+          <span className={badgeClassName}>
+            {product.badge}
+          </span>
+        )}
+      </Link>
 
-          {/* Quick Add */}
+      <div className="pt-3 flex flex-col gap-2">
+        <Link to={`/product/${product.slug}?variant=${selectedId}`}>
+          <h3 className="font-heading font-bold text-sm md:text-base text-foreground hover:text-accent transition-colors leading-tight">
+            {product.title}
+          </h3>
+        </Link>
+        <p className="font-semibold text-sm md:text-[15px]">
+          {formatPrice(price)}
+        </p>
+        <ColorSwatches
+          variants={product.variants}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+        />
+        <div className="mt-2 h-9">
           <button
             onClick={handleQuickAdd}
             disabled={selectedVariant.stockStatus === 'outOfStock'}
-            className={`
-            absolute bottom-3 left-3 right-3 py-2.5 rounded-lg text-xs font-bold tracking-wider
-            transition-all translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100
-            ${selectedVariant.stockStatus === 'outOfStock'
-              ? 'bg-muted text-muted-foreground cursor-not-allowed'
-              : 'bg-primary text-primary-foreground hover:bg-secondary'}
-          `}
+            className={`${quickAddBaseClass} ${quickAddAvailabilityClass} ${quickAddHoverClass}`}
           >
             {selectedVariant.stockStatus === 'outOfStock' ? 'Out of Stock' : 'Quick Add'}
           </button>
-        </Link>
-
-        <div className="pt-3 space-y-2">
-          <Link to={`/product/${product.slug}?variant=${selectedId}`}>
-            <h3 className="font-heading font-bold text-sm text-foreground hover:text-accent transition-colors leading-tight">
-              {product.title}
-            </h3>
-          </Link>
-          <p className="font-semibold text-sm">{formatPrice(price)}</p>
-          <ColorSwatches
-            variants={product.variants}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-          />
         </div>
       </div>
+    </div>
   );
 }
