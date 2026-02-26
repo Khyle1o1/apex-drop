@@ -53,6 +53,8 @@ type ApiCatalogVariant = {
   id: string;
   name: string;
   color: string | null;
+  colorHex: string | null;
+  imageUrl: string | null;
   priceOverride: string | null;
   isActive: boolean;
   stockStatus: StockStatus;
@@ -98,11 +100,14 @@ function mapApiVariant(v: ApiCatalogVariant, fallbackImage: string | null): Vari
       isActive: s.isActive && (s.stock ?? 0) > 0,
     })) ?? [];
 
+  const hex = v.colorHex ?? guessColorHex(v.color ?? v.name);
+  const image = v.imageUrl ?? fallbackImage ?? null;
+
   return {
     variantId: v.id,
     colorName: v.color ?? v.name,
-    colorHex: guessColorHex(v.color ?? v.name),
-    imageUrls: fallbackImage ? [fallbackImage] : [],
+    colorHex: hex,
+    imageUrls: image ? [image] : [],
     priceOverride,
     stockStatus: v.stockStatus,
     sizes,

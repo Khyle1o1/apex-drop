@@ -66,6 +66,8 @@ interface VariantEntry {
   id?: string;
   name: string;
   priceOverride: string;
+  colorHex: string;
+  imageUrl: string;
   isActive: boolean;
   sizes: SizeEntry[];
 }
@@ -85,6 +87,8 @@ const DEFAULT_SIZES = ['S', 'M', 'L', 'XL', 'XXL'];
 const emptyVariant = (): VariantEntry => ({
   name: '',
   priceOverride: '',
+  colorHex: '#0B1026',
+  imageUrl: '',
   isActive: true,
   sizes: [{ size: 'S', isActive: true }],
 });
@@ -134,6 +138,8 @@ function formToPayload(form: ProductFormState) {
     variants: form.variants.map((v) => ({
       id: v.id,
       name: v.name.trim(),
+      colorHex: v.colorHex.trim() || null,
+      imageUrl: v.imageUrl.trim() || null,
       priceOverride: v.priceOverride.trim() || null,
       isActive: v.isActive,
       sizes: v.sizes.map((s) => ({
@@ -238,6 +244,67 @@ function VariantRow({ variant, index, onChange, onRemove, canRemove }: VariantRo
             </div>
           </div>
 
+          {/* Color swatch + variant image */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Color Swatch</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={variant.colorHex || '#0B1026'}
+                  onChange={(e) => onChange({ ...variant, colorHex: e.target.value })}
+                  className="h-8 w-10 rounded border border-border bg-transparent p-0"
+                />
+                <Input
+                  value={variant.colorHex}
+                  onChange={(e) => onChange({ ...variant, colorHex: e.target.value })}
+                  placeholder="#0B1026"
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">
+                Variant Image <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
+              <Input
+                type="file"
+                accept="image/*"
+                className="h-8 text-xs"
+                onChange={(e) => {
+                  const file = (e.target as HTMLInputElement).files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    const result = reader.result;
+                    if (typeof result === 'string') {
+                      onChange({ ...variant, imageUrl: result });
+                    }
+                  };
+                  reader.readAsDataURL(file);
+                }}
+              />
+              {variant.imageUrl && (
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="h-10 w-10 rounded-md overflow-hidden border border-border bg-muted/40">
+                    <img
+                      src={variant.imageUrl}
+                      alt={variant.name || 'Variant'}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...variant, imageUrl: '' })}
+                    className="text-[11px] text-muted-foreground hover:text-destructive"
+                  >
+                    Remove image
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Sizes */}
           <div className="space-y-2">
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -337,6 +404,8 @@ function ProductSheet({ open, editProductId, categories, onClose, onSuccess }: P
           id: v.id,
           name: v.variantName ?? v.color ?? '',
           priceOverride: v.priceOverride ?? '',
+          colorHex: v.colorHex ?? '',
+          imageUrl: v.imageUrl ?? '',
           isActive: v.isActive ?? true,
           sizes: (v.sizes ?? []).map((s: any) => ({
             id: s.id,

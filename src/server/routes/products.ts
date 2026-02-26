@@ -63,6 +63,8 @@ router.get("/catalog", validateQuery(productsQuerySchema), async (req, res, next
         productId: variants.productId,
         variantName: variants.variantName,
         color: variants.color,
+        colorHex: variants.colorHex,
+        imageUrl: variants.imageUrl,
         priceOverride: variants.priceOverride,
         isActive: variants.isActive,
       })
@@ -108,6 +110,8 @@ router.get("/catalog", validateQuery(productsQuerySchema), async (req, res, next
           id: v.id,
           name: v.variantName ?? v.color ?? "Default",
           color: v.color ?? v.variantName ?? "Default",
+          colorHex: v.colorHex,
+          imageUrl: v.imageUrl,
           priceOverride: v.priceOverride,
           isActive: v.isActive,
           stockStatus,

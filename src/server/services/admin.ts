@@ -102,6 +102,8 @@ export async function getProductAdmin(productId: string) {
       id: variants.id,
       variantName: variants.variantName,
       color: variants.color,
+      colorHex: variants.colorHex,
+      imageUrl: variants.imageUrl,
       priceOverride: variants.priceOverride,
       isActive: variants.isActive,
     })
@@ -148,6 +150,8 @@ interface VariantInput {
   id?: string;
   name: string;
   priceOverride?: string | null;
+  colorHex?: string | null;
+  imageUrl?: string | null;
   isActive: boolean;
   sizes: SizeInput[];
 }
@@ -183,6 +187,8 @@ export async function createProductAdmin(data: ProductInput) {
           productId: product!.id,
           variantName: v.name,
           color: v.name,
+          colorHex: v.colorHex ?? null,
+          imageUrl: v.imageUrl ?? null,
           priceOverride: v.priceOverride ?? null,
           isActive: v.isActive,
         })
@@ -247,6 +253,8 @@ export async function updateProductAdmin(productId: string, data: ProductInput) 
           .set({
             variantName: v.name,
             color: v.name,
+            colorHex: v.colorHex ?? null,
+            imageUrl: v.imageUrl ?? null,
             priceOverride: v.priceOverride ?? null,
             isActive: v.isActive,
             updatedAt: new Date(),
@@ -260,6 +268,8 @@ export async function updateProductAdmin(productId: string, data: ProductInput) 
             productId,
             variantName: v.name,
             color: v.name,
+            colorHex: v.colorHex ?? null,
+            imageUrl: v.imageUrl ?? null,
             priceOverride: v.priceOverride ?? null,
             isActive: v.isActive,
           })

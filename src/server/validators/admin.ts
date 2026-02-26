@@ -45,6 +45,8 @@ const variantInputSchema = z.object({
       (v) => v == null || v === "" || (!isNaN(Number(v)) && Number(v) >= 0),
       "Invalid price override"
     ),
+  colorHex: z.string().optional().nullable(),
+  imageUrl: z.string().optional().nullable(),
   isActive: z.boolean().default(true),
   sizes: z
     .array(sizeInputSchema)

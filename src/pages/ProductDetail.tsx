@@ -184,7 +184,10 @@ export default function ProductDetail() {
                 <p className="text-sm font-semibold mb-3">Size</p>
                 <div className="flex gap-2 flex-wrap">
                   {sizeOptions.map((s) => {
-                    const isDisabled = hasInventorySizes && (!s.isActive || s.quantity <= 0);
+                    const isDisabled =
+                      selectedVariant.stockStatus === 'outOfStock' ||
+                      !s.isActive ||
+                      s.quantity <= 0;
                     const isSelected = selectedSize === s.sizeLabel;
                     return (
                       <button

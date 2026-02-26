@@ -77,6 +77,8 @@ export const variants = pgTable("variants", {
   sku: varchar("sku", { length: 128 }).unique(),
   variantName: varchar("variant_name", { length: 255 }),
   color: varchar("color", { length: 64 }),
+  colorHex: varchar("color_hex", { length: 64 }),
+  imageUrl: text("image_url"),
   priceOverride: decimal("price_override", { precision: 12, scale: 2 }),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
