@@ -51,7 +51,6 @@ const adminNav = [
   { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/orders', label: 'Orders', icon: ShoppingCart },
   { to: '/admin/products', label: 'Products', icon: Package },
-  { to: '/admin/categories', label: 'Categories', icon: Tags },
   { to: '/admin/inventory', label: 'Inventory / Variants', icon: Boxes },
   { to: '/admin/promotions', label: 'Promotions', icon: Sparkles },
   { to: '/admin/users', label: 'Users', icon: Users },

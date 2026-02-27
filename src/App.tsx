@@ -27,13 +27,23 @@ import AdminReports from "./pages/AdminReports";
 import AdminSettings from "./pages/AdminSettings";
 import { useEffect } from "react";
 import { useAuthStore } from "./lib/auth-store";
-import { getAccessToken } from "./lib/api";
+import { getAccessToken, getRefreshToken } from "./lib/api";
 import { useToast } from "./components/ui/use-toast";
 
 function AuthInit() {
   const fetchMe = useAuthStore((s) => s.fetchMe);
   useEffect(() => {
-    if (getAccessToken()) fetchMe();
+    const access = getAccessToken();
+    const refresh = getRefreshToken();
+
+    // If there are no tokens at all but a persisted user from a previous session,
+    // treat the user as logged out to avoid protected calls with stale tokens.
+    if (!access && !refresh) {
+      useAuthStore.setState({ user: null });
+      return;
+    }
+
+    if (access) fetchMe();
   }, [fetchMe]);
   return null;
 }

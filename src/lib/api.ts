@@ -9,6 +9,15 @@ const BASE_URL = "";
 const ACCESS_TOKEN_KEY = "apex_access_token";
 const REFRESH_TOKEN_KEY = "apex_refresh_token";
 
+type UnauthorizedHandler = () => void;
+
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+let refreshPromise: Promise<string | null> | null = null;
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  unauthorizedHandler = handler;
+}
+
 export function getAccessToken(): string | null {
   return localStorage.getItem(ACCESS_TOKEN_KEY);
 }
@@ -27,7 +36,12 @@ export function clearTokens(): void {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
-async function refreshAccessToken(): Promise<string | null> {
+function handleUnauthorized(): void {
+  clearTokens();
+  if (unauthorizedHandler) unauthorizedHandler();
+}
+
+async function doRefreshAccessToken(): Promise<string | null> {
   const refresh = getRefreshToken();
   if (!refresh) return null;
   const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
@@ -36,12 +50,21 @@ async function refreshAccessToken(): Promise<string | null> {
     body: JSON.stringify({ refreshToken: refresh }),
   });
   if (!res.ok) {
-    clearTokens();
+    handleUnauthorized();
     return null;
   }
   const data = (await res.json()) as { accessToken: string; refreshToken: string };
   setTokens(data.accessToken, data.refreshToken);
   return data.accessToken;
+}
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (!refreshPromise) {
+    refreshPromise = doRefreshAccessToken().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
 }
 
 export interface ApiRequestInit extends RequestInit {
@@ -63,6 +86,9 @@ export async function apiFetch(path: string, init: ApiRequestInit = {}): Promise
     if (newAccess) {
       headers.set("Authorization", `Bearer ${newAccess}`);
       res = await fetch(url, { ...fetchInit, headers });
+    } else {
+      // Refresh failed or no refresh token – treat as logged out.
+      handleUnauthorized();
     }
   }
   return res;
@@ -71,8 +97,21 @@ export async function apiFetch(path: string, init: ApiRequestInit = {}): Promise
 export async function apiJson<T>(path: string, init?: ApiRequestInit): Promise<T> {
   const res = await apiFetch(path, init);
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: { message: res.statusText, code: "UNKNOWN" } }));
-    throw new Error((err as { error?: { message?: string } })?.error?.message ?? "Request failed");
+    const errBody = await res
+      .json()
+      .catch(() => ({ error: { message: res.statusText, code: "UNKNOWN" } }));
+    const error = errBody as { error?: { message?: string; code?: string } };
+    const message = error.error?.message ?? "Request failed";
+    const code = error.error?.code ?? "UNKNOWN";
+    const e = new Error(message) as Error & { code?: string; status?: number };
+    e.code = code;
+    e.status = res.status;
+    // If backend says unauthorized but we somehow didn't run refresh logic (e.g. skipRefresh),
+    // still clear session once.
+    if (res.status === 401 || code === "UNAUTHORIZED") {
+      handleUnauthorized();
+    }
+    throw e;
   }
   if (res.status === 204 || res.headers.get("content-length") === "0") {
     return undefined as unknown as T;

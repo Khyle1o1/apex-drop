@@ -1,6 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { apiFetch, setTokens, clearTokens, getAccessToken } from "@/lib/api";
+import {
+  apiFetch,
+  setTokens,
+  clearTokens,
+  getAccessToken,
+  setUnauthorizedHandler,
+} from "@/lib/api";
 
 export type UserRole = "customer" | "admin";
 
@@ -203,3 +209,10 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+// Configure global unauthorized handling so any final auth failure
+// (invalid/expired tokens, failed refresh) clears the session once.
+setUnauthorizedHandler(() => {
+  clearTokens();
+  useAuthStore.setState({ user: null });
+});
