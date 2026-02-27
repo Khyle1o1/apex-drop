@@ -56,6 +56,8 @@ type ApiCatalogVariant = {
   colorHex: string | null;
   imageUrl: string | null;
   priceOverride: string | null;
+  sortOrder?: number;
+  isBase?: boolean;
   isActive: boolean;
   stockStatus: StockStatus;
   sizes: ApiCatalogVariantSize[];
@@ -66,6 +68,7 @@ type ApiCatalogProduct = {
   name: string;
   description: string;
   imageUrl: string | null;
+  colorHex: string | null;
   category: { id: string; name: string } | null;
   basePrice: number;
   displayPrice: number;
@@ -89,7 +92,11 @@ function guessColorHex(name: string): string {
   return colorHexMap[key] ?? '#0B1026';
 }
 
-function mapApiVariant(v: ApiCatalogVariant, fallbackImage: string | null): Variant {
+function mapApiVariant(
+  v: ApiCatalogVariant,
+  fallbackImage: string | null,
+  productColorHex: string | null,
+): Variant {
   const priceOverride =
     v.priceOverride != null ? Number(v.priceOverride) : undefined;
   const sizes: VariantSize[] =
@@ -100,12 +107,16 @@ function mapApiVariant(v: ApiCatalogVariant, fallbackImage: string | null): Vari
       isActive: s.isActive && (s.stock ?? 0) > 0,
     })) ?? [];
 
-  const hex = v.colorHex ?? guessColorHex(v.color ?? v.name);
-  const image = v.imageUrl ?? fallbackImage ?? null;
+  const hex = v.isBase && productColorHex
+    ? productColorHex
+    : (v.colorHex ?? guessColorHex(v.color ?? v.name));
+  const image = v.isBase
+    ? (fallbackImage ?? v.imageUrl ?? null)
+    : (v.imageUrl ?? fallbackImage ?? null);
 
   return {
     variantId: v.id,
-    colorName: v.color ?? v.name,
+    colorName: v.isBase ? 'Default' : (v.color ?? v.name),
     colorHex: hex,
     imageUrls: image ? [image] : [],
     priceOverride,
@@ -116,7 +127,9 @@ function mapApiVariant(v: ApiCatalogVariant, fallbackImage: string | null): Vari
 
 function mapApiProduct(p: ApiCatalogProduct): Product {
   const basePrice = Number(p.basePrice);
-  const variants = p.variants.map((v) => mapApiVariant(v, p.imageUrl));
+  const variants = p.variants.map((v) =>
+    mapApiVariant(v, p.imageUrl, p.colorHex),
+  );
   const allSizeLabels = Array.from(
     new Set(
       variants.flatMap((v) => v.sizes?.map((s) => s.sizeLabel) ?? []),

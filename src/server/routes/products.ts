@@ -42,6 +42,7 @@ router.get("/catalog", validateQuery(productsQuerySchema), async (req, res, next
         name: products.name,
         description: products.description,
         images: products.images,
+        colorHex: products.colorHex,
         basePrice: products.basePrice,
         categoryId: products.categoryId,
         categoryName: categories.name,
@@ -66,6 +67,8 @@ router.get("/catalog", validateQuery(productsQuerySchema), async (req, res, next
         colorHex: variants.colorHex,
         imageUrl: variants.imageUrl,
         priceOverride: variants.priceOverride,
+        sortOrder: variants.sortOrder,
+        isBase: variants.isBase,
         isActive: variants.isActive,
       })
       .from(variants)
@@ -89,7 +92,14 @@ router.get("/catalog", validateQuery(productsQuerySchema), async (req, res, next
             .where(inArray(variantSizes.variantId, variantIds));
 
     const catalog = productRows.map((p) => {
-      const pVariants = variantRows.filter((v) => v.productId === p.id).map((v) => {
+      const allVariantsForProduct = variantRows.filter((v) => v.productId === p.id);
+      const sortedVariants = [...allVariantsForProduct].sort((a, b) => {
+        if (a.isBase) return -1;
+        if (b.isBase) return 1;
+        return a.sortOrder - b.sortOrder;
+      });
+
+      const pVariants = sortedVariants.map((v) => {
         const vSizes = sizeRows.filter((s) => s.variantId === v.id);
         const sizes = vSizes.map((s) => {
           const stock = s.stock ?? 0;
@@ -113,6 +123,8 @@ router.get("/catalog", validateQuery(productsQuerySchema), async (req, res, next
           colorHex: v.colorHex,
           imageUrl: v.imageUrl,
           priceOverride: v.priceOverride,
+          sortOrder: v.sortOrder,
+          isBase: v.isBase,
           isActive: v.isActive,
           stockStatus,
           sizes,
@@ -131,6 +143,7 @@ router.get("/catalog", validateQuery(productsQuerySchema), async (req, res, next
         name: p.name,
         description: p.description ?? "",
         imageUrl: (p.images && p.images[0]) || null,
+        colorHex: p.colorHex ?? null,
         category: p.categoryId
           ? {
               id: p.categoryId,

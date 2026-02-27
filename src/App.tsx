@@ -72,7 +72,28 @@ function ShopRoute({ children }: { children: JSX.Element }) {
   return children;
 }
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error: unknown) => {
+        const message =
+          typeof error === "object" && error !== null && "message" in error && typeof (error as any).message === "string"
+            ? (error as any).message.toLowerCase()
+            : "";
+
+        if (
+          message.includes("unauthorized") ||
+          message.includes("invalid or expired token") ||
+          message.includes("missing or invalid authorization")
+        ) {
+          return false;
+        }
+
+        return failureCount < 2;
+      },
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

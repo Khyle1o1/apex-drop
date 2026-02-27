@@ -84,6 +84,7 @@ export async function getProductAdmin(productId: string) {
       description: products.description,
       basePrice: products.basePrice,
       images: products.images,
+      colorHex: products.colorHex,
       isActive: products.isActive,
       categoryId: products.categoryId,
       categoryName: categories.name,
@@ -105,11 +106,13 @@ export async function getProductAdmin(productId: string) {
       colorHex: variants.colorHex,
       imageUrl: variants.imageUrl,
       priceOverride: variants.priceOverride,
+      isBase: variants.isBase,
+      sortOrder: variants.sortOrder,
       isActive: variants.isActive,
     })
     .from(variants)
     .where(eq(variants.productId, productId))
-    .orderBy(asc(variants.variantName));
+    .orderBy(asc(variants.sortOrder), asc(variants.variantName));
 
   const variantIds = variantRows.map((v) => v.id);
   const sizeRows =
@@ -132,12 +135,21 @@ export async function getProductAdmin(productId: string) {
     sizesByVariant.get(s.variantId)!.push(s);
   }
 
-  const variantsWithSizes = variantRows.map((v) => ({
+  const baseVariant = variantRows.find((v) => v.isBase);
+  const additionalVariants = variantRows.filter((v) => !v.isBase).map((v) => ({
     ...v,
     sizes: sizesByVariant.get(v.id) ?? [],
   }));
 
-  return { ...product, variants: variantsWithSizes };
+  const rawDefaultSizes = baseVariant ? (sizesByVariant.get(baseVariant.id) ?? []) : [];
+  const defaultSizes =
+    rawDefaultSizes.length > 0 ? rawDefaultSizes : [{ size: "Standard", isActive: true }];
+
+  return {
+    ...product,
+    defaultSizes,
+    variants: additionalVariants,
+  };
 }
 
 interface SizeInput {
@@ -161,13 +173,52 @@ interface ProductInput {
   categoryId: string;
   basePrice: string;
   images?: string[];
+  colorHex?: string | null;
   description?: string;
   isActive: boolean;
+  defaultSizes: SizeInput[];
   variants: VariantInput[];
+}
+
+function ensureBaseVariantSizes(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  variantId: string,
+  defaultSizes: SizeInput[],
+) {
+  return (async () => {
+    const existingSizes = await tx
+      .select()
+      .from(variantSizes)
+      .where(eq(variantSizes.variantId, variantId));
+    const incomingSizeIds = defaultSizes.filter((s) => s.id).map((s) => s.id!);
+    const toDelete = existingSizes.filter((s) => !incomingSizeIds.includes(s.id));
+    for (const s of toDelete) {
+      await tx.delete(variantSizes).where(eq(variantSizes.id, s.id));
+    }
+    for (const s of defaultSizes) {
+      if (s.id) {
+        await tx
+          .update(variantSizes)
+          .set({ size: s.size, isActive: s.isActive, updatedAt: new Date() })
+          .where(eq(variantSizes.id, s.id));
+      } else {
+        const [newVs] = await tx
+          .insert(variantSizes)
+          .values({ variantId, size: s.size, isActive: s.isActive })
+          .returning();
+        await tx.insert(inventory).values({
+          variantSizeId: newVs!.id,
+          stock: 0,
+          reserved: 0,
+        });
+      }
+    }
+  })();
 }
 
 export async function createProductAdmin(data: ProductInput) {
   return await db.transaction(async (tx) => {
+    const mainImage = data.images?.[0] ?? null;
     const [product] = await tx
       .insert(products)
       .values({
@@ -175,12 +226,47 @@ export async function createProductAdmin(data: ProductInput) {
         categoryId: data.categoryId,
         basePrice: data.basePrice,
         images: data.images ?? [],
+        colorHex: data.colorHex ?? null,
         description: data.description ?? null,
         isActive: data.isActive,
       })
       .returning();
 
-    for (const v of data.variants) {
+    const defaultSizes = data.defaultSizes?.length ? data.defaultSizes : [{ size: "Standard", isActive: true }];
+
+    const [baseVariant] = await tx
+      .insert(variants)
+      .values({
+        productId: product!.id,
+        variantName: "Default",
+        color: "Default",
+        colorHex: data.colorHex ?? null,
+        imageUrl: mainImage,
+        priceOverride: null,
+        sortOrder: 0,
+        isBase: true,
+        isActive: true,
+      })
+      .returning();
+
+    for (const s of defaultSizes) {
+      const [vs] = await tx
+        .insert(variantSizes)
+        .values({
+          variantId: baseVariant!.id,
+          size: s.size,
+          isActive: s.isActive,
+        })
+        .returning();
+      await tx.insert(inventory).values({
+        variantSizeId: vs!.id,
+        stock: 0,
+        reserved: 0,
+      });
+    }
+
+    for (let i = 0; i < data.variants.length; i++) {
+      const v = data.variants[i];
       const [variant] = await tx
         .insert(variants)
         .values({
@@ -190,6 +276,8 @@ export async function createProductAdmin(data: ProductInput) {
           colorHex: v.colorHex ?? null,
           imageUrl: v.imageUrl ?? null,
           priceOverride: v.priceOverride ?? null,
+          sortOrder: i + 1,
+          isBase: false,
           isActive: v.isActive,
         })
         .returning();
@@ -203,7 +291,6 @@ export async function createProductAdmin(data: ProductInput) {
             isActive: s.isActive,
           })
           .returning();
-
         await tx.insert(inventory).values({
           variantSizeId: vs!.id,
           stock: 0,
@@ -221,6 +308,8 @@ export async function updateProductAdmin(productId: string, data: ProductInput) 
     const [existing] = await tx.select().from(products).where(eq(products.id, productId)).limit(1);
     if (!existing) throw new AppError("Product not found", 404, "NOT_FOUND");
 
+    const mainImage = data.images?.[0] ?? existing.images?.[0] ?? null;
+
     await tx
       .update(products)
       .set({
@@ -228,23 +317,66 @@ export async function updateProductAdmin(productId: string, data: ProductInput) 
         categoryId: data.categoryId,
         basePrice: data.basePrice,
         images: data.images ?? existing.images ?? [],
+        colorHex: data.colorHex ?? null,
         description: data.description ?? null,
         isActive: data.isActive,
         updatedAt: new Date(),
       })
       .where(eq(products.id, productId));
 
-    // Get existing variants
     const existingVariants = await tx.select().from(variants).where(eq(variants.productId, productId));
-    const incomingVariantIds = data.variants.filter((v) => v.id).map((v) => v.id!);
+    const baseVariant = existingVariants.find((v) => v.isBase);
+    const defaultSizes = data.defaultSizes?.length ? data.defaultSizes : [{ size: "Standard", isActive: true }];
 
-    // Delete variants not in the incoming list
-    const toDeleteVariants = existingVariants.filter((v) => !incomingVariantIds.includes(v.id));
-    for (const v of toDeleteVariants) {
+    if (baseVariant) {
+      await tx
+        .update(variants)
+        .set({
+          variantName: "Default",
+          color: "Default",
+          colorHex: data.colorHex ?? null,
+          imageUrl: mainImage,
+          priceOverride: null,
+          isBase: true,
+          sortOrder: 0,
+          isActive: true,
+          updatedAt: new Date(),
+        })
+        .where(eq(variants.id, baseVariant.id));
+      await ensureBaseVariantSizes(tx, baseVariant.id, defaultSizes);
+    } else {
+      const [newBase] = await tx
+        .insert(variants)
+        .values({
+          productId,
+          variantName: "Default",
+          color: "Default",
+          colorHex: data.colorHex ?? null,
+          imageUrl: mainImage,
+          priceOverride: null,
+          sortOrder: 0,
+          isBase: true,
+          isActive: true,
+        })
+        .returning();
+      for (const s of defaultSizes) {
+        const [vs] = await tx
+          .insert(variantSizes)
+          .values({ variantId: newBase!.id, size: s.size, isActive: s.isActive })
+          .returning();
+        await tx.insert(inventory).values({ variantSizeId: vs!.id, stock: 0, reserved: 0 });
+      }
+    }
+
+    const incomingAdditionalIds = data.variants.filter((v) => v.id).map((v) => v.id!);
+    const toDeleteAdditional = existingVariants.filter((v) => !v.isBase && !incomingAdditionalIds.includes(v.id));
+    for (const v of toDeleteAdditional) {
       await tx.delete(variants).where(eq(variants.id, v.id));
     }
 
-    for (const v of data.variants) {
+    for (let i = 0; i < data.variants.length; i++) {
+      const v = data.variants[i];
+      const sortOrder = i + 1;
       let variantId: string;
 
       if (v.id) {
@@ -256,6 +388,8 @@ export async function updateProductAdmin(productId: string, data: ProductInput) 
             colorHex: v.colorHex ?? null,
             imageUrl: v.imageUrl ?? null,
             priceOverride: v.priceOverride ?? null,
+            sortOrder,
+            isBase: false,
             isActive: v.isActive,
             updatedAt: new Date(),
           })
@@ -271,24 +405,23 @@ export async function updateProductAdmin(productId: string, data: ProductInput) 
             colorHex: v.colorHex ?? null,
             imageUrl: v.imageUrl ?? null,
             priceOverride: v.priceOverride ?? null,
+            sortOrder,
+            isBase: false,
             isActive: v.isActive,
           })
           .returning();
         variantId = newVariant!.id;
       }
 
-      // Sync sizes
       const existingSizes = await tx
         .select()
         .from(variantSizes)
         .where(eq(variantSizes.variantId, variantId));
-
       const incomingSizeIds = v.sizes.filter((s) => s.id).map((s) => s.id!);
       const toDeleteSizes = existingSizes.filter((s) => !incomingSizeIds.includes(s.id));
       for (const s of toDeleteSizes) {
         await tx.delete(variantSizes).where(eq(variantSizes.id, s.id));
       }
-
       for (const s of v.sizes) {
         if (s.id) {
           await tx
@@ -300,11 +433,7 @@ export async function updateProductAdmin(productId: string, data: ProductInput) 
             .insert(variantSizes)
             .values({ variantId, size: s.size, isActive: s.isActive })
             .returning();
-          await tx.insert(inventory).values({
-            variantSizeId: newVs!.id,
-            stock: 0,
-            reserved: 0,
-          });
+          await tx.insert(inventory).values({ variantSizeId: newVs!.id, stock: 0, reserved: 0 });
         }
       }
     }

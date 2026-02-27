@@ -65,9 +65,14 @@ export const createProductSchema = z.object({
     .min(1, "Base price is required")
     .refine((v) => !isNaN(Number(v)) && Number(v) >= 0, "Invalid price"),
   images: z.array(z.string()).optional().default([]),
+  colorHex: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   isActive: z.boolean().default(true),
-  variants: z.array(variantInputSchema).min(1, "At least one variant is required"),
+  defaultSizes: z
+    .array(sizeInputSchema)
+    .min(1, "Main product must have at least one default size")
+    .default([{ size: "Standard", isActive: true }]),
+  variants: z.array(variantInputSchema).optional().default([]),
 });
 
 export const updateProductSchema = createProductSchema;

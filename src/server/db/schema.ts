@@ -63,12 +63,14 @@ export const products = pgTable("products", {
   description: text("description"),
   basePrice: decimal("base_price", { precision: 12, scale: 2 }).notNull(),
   images: jsonb("images").$type<string[]>().default([]),
+  colorHex: varchar("color_hex", { length: 64 }),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-// Variants represent a color/style option (e.g. "Navy", "Maroon") — no size at this level
+// Variants represent additional color/style options. The main product is the default first option (product.image + product.colorHex).
+// One variant per product can be marked isBase: it represents the main product for cart/checkout; display uses product image/colorHex.
 export const variants = pgTable("variants", {
   id: uuid("id").primaryKey().defaultRandom(),
   productId: uuid("product_id")
@@ -80,6 +82,8 @@ export const variants = pgTable("variants", {
   colorHex: varchar("color_hex", { length: 64 }),
   imageUrl: text("image_url"),
   priceOverride: decimal("price_override", { precision: 12, scale: 2 }),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isBase: boolean("is_base").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

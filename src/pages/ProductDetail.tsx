@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useParams, useSearchParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import Layout from '@/components/layout/Layout';
@@ -42,6 +42,15 @@ export default function ProductDetail() {
 
   const [selectedVariantId, setSelectedVariantId] = useState(initialVariantId);
   const [selectedSize, setSelectedSize] = useState('');
+
+  useEffect(() => {
+    if (!product?.variants?.length) return;
+    const valid = product.variants.some((v) => v.variantId === selectedVariantId);
+    if (valid) return;
+    const fromParam = product.variants.find((v) => v.variantId === variantParam);
+    const effective = fromParam ?? product.variants[0];
+    if (effective) setSelectedVariantId(effective.variantId);
+  }, [product?.id, product?.variants, variantParam]);
 
   if (isLoading && !product) {
     return (

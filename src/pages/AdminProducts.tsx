@@ -77,8 +77,10 @@ interface ProductFormState {
   categoryId: string;
   basePrice: string;
   imageUrl: string;
+  colorHex: string;
   description: string;
   isActive: boolean;
+  defaultSizes: SizeEntry[];
   variants: VariantEntry[];
 }
 
@@ -98,9 +100,11 @@ const emptyForm = (): ProductFormState => ({
   categoryId: '',
   basePrice: '',
   imageUrl: '',
+  colorHex: '#0B1026',
   description: '',
   isActive: true,
-  variants: [emptyVariant()],
+  defaultSizes: [{ size: 'Standard', isActive: true }],
+  variants: [],
 });
 
 // ─── Validation ───────────────────────────────────────────────────────────────
@@ -110,7 +114,13 @@ function validateForm(form: ProductFormState): string | null {
   if (!form.categoryId) return 'Please select a category.';
   if (!form.basePrice || isNaN(Number(form.basePrice)) || Number(form.basePrice) < 0)
     return 'A valid base price is required.';
-  if (form.variants.length === 0) return 'At least one variant/color is required.';
+  if (form.defaultSizes.length === 0) return 'Main product must have at least one default size.';
+  for (const s of form.defaultSizes) {
+    if (!s.size.trim()) return 'Default size value cannot be empty.';
+  }
+  const defaultSizeVals = form.defaultSizes.map((s) => s.size.trim());
+  if (new Set(defaultSizeVals).size !== defaultSizeVals.length)
+    return 'Duplicate default sizes are not allowed.';
   for (let i = 0; i < form.variants.length; i++) {
     const v = form.variants[i];
     if (!v.name.trim()) return `Variant ${i + 1}: name is required.`;
@@ -133,8 +143,14 @@ function formToPayload(form: ProductFormState) {
     categoryId: form.categoryId,
     basePrice: form.basePrice,
     images: form.imageUrl.trim() ? [form.imageUrl.trim()] : [],
+    colorHex: form.colorHex.trim() || null,
     description: form.description.trim() || null,
     isActive: form.isActive,
+    defaultSizes: form.defaultSizes.map((s) => ({
+      id: s.id,
+      size: s.size.trim(),
+      isActive: s.isActive,
+    })),
     variants: form.variants.map((v) => ({
       id: v.id,
       name: v.name.trim(),
@@ -398,8 +414,14 @@ function ProductSheet({ open, editProductId, categories, onClose, onSuccess }: P
         categoryId: editData.categoryId ?? '',
         basePrice: editData.basePrice ?? '',
         imageUrl: (editData.images?.[0] ?? ''),
+        colorHex: editData.colorHex ?? '#0B1026',
         description: editData.description ?? '',
         isActive: editData.isActive ?? true,
+        defaultSizes: (editData.defaultSizes ?? []).map((s: any) => ({
+          id: s.id,
+          size: s.size,
+          isActive: s.isActive ?? true,
+        })),
         variants: (editData.variants ?? []).map((v: any) => ({
           id: v.id,
           name: v.variantName ?? v.color ?? '',
@@ -559,7 +581,7 @@ function ProductSheet({ open, editProductId, categories, onClose, onSuccess }: P
               </div>
 
               <div className="space-y-1">
-                <Label htmlFor="prod-image" className="text-xs">Product Image</Label>
+                <Label htmlFor="prod-image" className="text-xs">Main Product Image</Label>
                 <Input
                   id="prod-image"
                   type="file"
@@ -580,10 +602,31 @@ function ProductSheet({ open, editProductId, categories, onClose, onSuccess }: P
                       />
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                      Uploaded image will be used in the catalog. Stock is managed in Inventory.
+                      This main product image is the default image shown before selecting other variants. Stock is managed in Inventory.
                     </p>
                   </div>
                 )}
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Main Product Color (Default Swatch)</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={form.colorHex}
+                    onChange={(e) => setForm((f) => ({ ...f, colorHex: e.target.value }))}
+                    className="h-9 w-14 rounded border border-border cursor-pointer bg-background"
+                  />
+                  <Input
+                    value={form.colorHex}
+                    onChange={(e) => setForm((f) => ({ ...f, colorHex: e.target.value }))}
+                    placeholder="#0B1026"
+                    className="h-9 font-mono text-sm max-w-[120px]"
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  This is the default first swatch shown in the shop.
+                </p>
               </div>
 
               <div className="space-y-1">
@@ -611,12 +654,75 @@ function ProductSheet({ open, editProductId, categories, onClose, onSuccess }: P
                   {form.isActive ? 'Active — visible in store' : 'Inactive — hidden from store'}
                 </Label>
               </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Main Product Default Sizes</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Sizes for the main/default product option. Used when the first swatch is selected.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {form.defaultSizes.map((s, si) => (
+                    <div key={si} className="flex items-center gap-1.5 border border-border rounded-lg px-2 py-1.5 bg-muted/20">
+                      <Input
+                        value={s.size}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            defaultSizes: f.defaultSizes.map((ss, i) =>
+                              i === si ? { ...ss, size: e.target.value } : ss,
+                            ),
+                          }))
+                        }
+                        placeholder="Size"
+                        className="h-7 w-20 text-xs"
+                      />
+                      <Switch
+                        checked={s.isActive}
+                        onCheckedChange={(v) =>
+                          setForm((f) => ({
+                            ...f,
+                            defaultSizes: f.defaultSizes.map((ss, i) =>
+                              i === si ? { ...ss, isActive: v } : ss,
+                            ),
+                          }))
+                        }
+                        className="scale-75"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((f) => ({
+                            ...f,
+                            defaultSizes: f.defaultSizes.filter((_, i) => i !== si),
+                          }))
+                        }
+                        disabled={form.defaultSizes.length <= 1}
+                        className="text-muted-foreground hover:text-destructive disabled:opacity-40"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        defaultSizes: [...f.defaultSizes, { size: '', isActive: true }],
+                      }))
+                    }
+                    className="text-xs text-accent hover:underline"
+                  >
+                    + Add size
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {/* Variants */}
+            {/* Additional Variants */}
             <div className="space-y-3">
               <div className="flex items-center justify-between border-b border-border pb-1.5">
-                <h3 className="text-sm font-semibold text-foreground">Variants / Colors</h3>
+                <h3 className="text-sm font-semibold text-foreground">Additional Variants / Colors</h3>
                 <Button
                   type="button"
                   variant="outline"
@@ -630,7 +736,9 @@ function ProductSheet({ open, editProductId, categories, onClose, onSuccess }: P
               </div>
 
               <p className="text-xs text-muted-foreground -mt-1">
-                Each color/variant can have its own price override. Leave blank to use base product price.
+                The main product image and swatch are used as the first default option in the shop.
+                <br />
+                Additional variants appear after the main/default product swatch. Each can have its own price override.
                 <br />
                 Stock is <strong>not managed here</strong> — go to Inventory / Variants page to set stock.
               </p>
@@ -643,7 +751,7 @@ function ProductSheet({ open, editProductId, categories, onClose, onSuccess }: P
                     index={idx}
                     onChange={(updated) => updateVariant(idx, updated)}
                     onRemove={() => removeVariant(idx)}
-                    canRemove={form.variants.length > 1}
+                    canRemove={true}
                   />
                 ))}
               </div>
